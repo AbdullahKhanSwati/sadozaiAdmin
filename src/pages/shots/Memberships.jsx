@@ -9,6 +9,7 @@ import {
   EmptyState, FilterChips, PageHeader, StatCard, StatusPill, TierBadge,
 } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
+import { downloadCsv, csvDate } from '../../lib/csv.js';
 import MemberDialog from '../../components/dialogs/MemberDialog.jsx';
 import TiersDialog from '../../components/dialogs/TiersDialog.jsx';
 import MembershipVirtualCard from '../../components/MembershipVirtualCard.jsx';
@@ -43,6 +44,22 @@ export default function Memberships() {
   const expired = members.filter((m) => m.status === 'Expired').length;
   const premium = members.filter((m) => m.type === 'Premium').length;
 
+  const exportCsv = () => {
+    downloadCsv(`members-${csvDate()}.csv`, [
+      { label: 'Member ID', value: 'id' },
+      { label: 'Name', value: 'name' },
+      { label: 'Tier', value: 'type' },
+      { label: 'CNIC', value: 'cnic' },
+      { label: 'Phone', value: 'phone' },
+      { label: 'Email', value: 'email' },
+      { label: 'Joined', value: 'joinDate' },
+      { label: 'Expires', value: 'expiryDate' },
+      { label: 'Visits', value: 'visits' },
+      { label: 'Lifetime Spent (Rs.)', value: 'totalSpent' },
+      { label: 'Status', value: 'status' },
+    ], list);
+  };
+
   return (
     <>
       <PageHeader
@@ -52,7 +69,7 @@ export default function Memberships() {
           <>
             <button onClick={() => setTiersOpen(true)} className="btn-ghost"><Layers className="w-4 h-4" /> Manage tiers</button>
             <button className="btn-ghost"><QrCode className="w-4 h-4" /> Scan QR</button>
-            <button className="btn-ghost"><Download className="w-4 h-4" /> Export</button>
+            <button onClick={exportCsv} className="btn-ghost"><Download className="w-4 h-4" /> Export</button>
             <button onClick={() => setMemberDialog({ open: true, member: null })} className="btn-primary">
               <UserPlus className="w-4 h-4" /> Add member
             </button>

@@ -13,6 +13,7 @@ import {
 } from '../../data/shotsData.js';
 import { PageHeader, StatCard, StatusPill, TierBadge } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
+import { downloadCsv, csvDate } from '../../lib/csv.js';
 import BookingDialog from '../../components/dialogs/BookingDialog.jsx';
 
 const PIE_COLORS = ['#E53E3E', '#F4B860', '#3B82F6', '#10B981', '#A855F7', '#FF6B6B', '#64748B'];
@@ -42,6 +43,18 @@ export default function Dashboard() {
 
   const recent = [...finance].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 6);
 
+  const exportCsv = () => {
+    const ledger = [...finance].sort((a, b) => (a.date < b.date ? 1 : -1));
+    downloadCsv(`shots-transactions-${csvDate()}.csv`, [
+      { label: 'Date', value: 'date' },
+      { label: 'Time', value: 'time' },
+      { label: 'Type', value: (t) => (t.type === 'In' ? 'Income' : 'Expense') },
+      { label: 'Category', value: 'category' },
+      { label: 'Description', value: 'description' },
+      { label: 'Amount (Rs.)', value: 'amount' },
+    ], ledger);
+  };
+
   return (
     <>
       <PageHeader
@@ -49,7 +62,7 @@ export default function Dashboard() {
         subtitle={`Welcome back. Here's what's happening at Shots today, ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}.`}
         actions={
           <>
-            <button className="btn-ghost">
+            <button onClick={exportCsv} className="btn-ghost">
               <Download className="w-4 h-4" />
               Export
             </button>

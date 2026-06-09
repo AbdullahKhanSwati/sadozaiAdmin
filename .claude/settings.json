@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd \"d:\\\\latest-app-projects\\\\sadozaiBusinesses\\\\sadozaiAdmin\" && mkdir -p supabase && echo \"created\")",
+      "Bash(node -e \"console.log\\(require\\('./package.json'\\).dependencies['@supabase/supabase-js']\\)\")",
+      "Bash(npm run *)",
+      "Bash(node verify.mjs)"
+    ],
+    "additionalDirectories": [
+      "d:\\latest-app-projects\\sadozaiBusinesses\\sadozaiAdmin"
+    ]
+  }
+}

@@ -5,6 +5,7 @@ import {
   EmptyState, FilterChips, PageHeader, StatCard, StatusPill, Tabs,
 } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
+import { downloadCsv, csvDate } from '../../lib/csv.js';
 import BookingDialog from '../../components/dialogs/BookingDialog.jsx';
 
 const STATUS_ITEMS = (list) => [
@@ -41,6 +42,21 @@ export default function Bookings() {
   const todayList = bookings.filter((b) => b.date === today);
   const todayRevenue = todayList.reduce((s, b) => s + (b.amount || 0), 0);
 
+  const exportCsv = () => {
+    downloadCsv(`bookings-${scope}-${csvDate()}.csv`, [
+      { label: 'Date', value: 'date' },
+      { label: 'Start', value: 'start' },
+      { label: 'End', value: 'end' },
+      { label: 'Table', value: (b) => `T${b.tableNumber}` },
+      { label: 'Member', value: 'memberName' },
+      { label: 'Member ID', value: (b) => (b.isMember ? b.memberId : 'Walk-in') },
+      { label: 'Type', value: (b) => b.memberType || 'Guest' },
+      { label: 'Players', value: 'players' },
+      { label: 'Amount (Rs.)', value: 'amount' },
+      { label: 'Status', value: 'status' },
+    ], list);
+  };
+
   return (
     <>
       <PageHeader
@@ -48,7 +64,7 @@ export default function Bookings() {
         subtitle="See, manage, and create table bookings across all halls."
         actions={
           <>
-            <button className="btn-ghost"><Download className="w-4 h-4" /> Export CSV</button>
+            <button onClick={exportCsv} className="btn-ghost"><Download className="w-4 h-4" /> Export CSV</button>
             <button onClick={() => setDialog({ open: true, booking: null })} className="btn-primary">
               <Plus className="w-4 h-4" /> New booking
             </button>

@@ -8,6 +8,7 @@ import {
 } from '../../data/shotsData.js';
 import { FilterChips, PageHeader, StatCard, Tabs } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
+import { downloadCsv, csvDate } from '../../lib/csv.js';
 
 const TYPE_FILTERS = [
   { value: 'All', label: 'All' },
@@ -66,6 +67,17 @@ export default function Finance() {
 
   const today = dateKey(new Date());
 
+  const exportCsv = () => {
+    downloadCsv(`finance-${selected.label.replace(/\s+/g, '-')}-${csvDate()}.csv`, [
+      { label: 'Date', value: 'date' },
+      { label: 'Time', value: 'time' },
+      { label: 'Type', value: (t) => (t.type === 'In' ? 'Income' : 'Expense') },
+      { label: 'Category', value: 'category' },
+      { label: 'Description', value: 'description' },
+      { label: 'Amount (Rs.)', value: 'amount' },
+    ], items);
+  };
+
   return (
     <>
       <PageHeader
@@ -73,7 +85,7 @@ export default function Finance() {
         subtitle={selected.isCurrent ? `${selected.label} · to date` : selected.label}
         actions={
           <>
-            <button className="btn-ghost"><Download className="w-4 h-4" /> Export</button>
+            <button onClick={exportCsv} className="btn-ghost"><Download className="w-4 h-4" /> Export</button>
             <button onClick={() => setAddOpen(true)} className="btn-primary"><Plus className="w-4 h-4" /> New transaction</button>
           </>
         }

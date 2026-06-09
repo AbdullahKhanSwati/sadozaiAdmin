@@ -31,7 +31,7 @@ export default function Login() {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     if (!selected.available) {
@@ -43,11 +43,14 @@ export default function Login() {
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      login(selected, email);
-      setLoading(false);
+    try {
+      await login(email, password);
       navigate('/admin/dashboard', { replace: true });
-    }, 700);
+    } catch (err) {
+      setError(err?.message || 'Sign in failed. Check your email and password.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

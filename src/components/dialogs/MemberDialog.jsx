@@ -6,6 +6,7 @@ import {
   generateMemberId, membershipDurations, rupees,
 } from '../../data/shotsData.js';
 import { useShots } from '../../store/ShotsStore.jsx';
+import { uploadToBucket } from '../../lib/supabase.js';
 import MembershipVirtualCard from '../MembershipVirtualCard.jsx';
 
 const EMPTY = {
@@ -34,6 +35,9 @@ export default function MemberDialog({ open, onClose, member }) {
   const editing = !!member;
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState('');
+  const [photoFile, setPhotoFile] = useState(null);
+  const [cnicFile, setCnicFile] = useState(null);
+  const [saving, setSaving] = useState(false);
   const photoInputRef = useRef(null);
   const idInputRef = useRef(null);
 
@@ -56,6 +60,8 @@ export default function MemberDialog({ open, onClose, member }) {
     } else {
       setForm({ ...EMPTY, type: tiers[tiers.length - 1]?.tier || 'Premium' });
     }
+    setPhotoFile(null);
+    setCnicFile(null);
     setError('');
   }, [open, editing, member, tiers]);
 
@@ -95,59 +101,77 @@ export default function MemberDialog({ open, onClose, member }) {
   const onPickPhoto = (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    setPhotoFile(f);
     const reader = new FileReader();
-    reader.onload = (ev) => setField('photo', ev.target.result);
+    reader.onload = (ev) => setField('photo', ev.target.result); // data URL for live preview
     reader.readAsDataURL(f);
   };
 
   const onPickCnic = (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    setCnicFile(f);
     setField('cnicImage', f.name);
   };
 
   const canSubmit = form.name && form.phone && form.cnic && computedId;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setError('');
     if (!canSubmit) return setError('Name, phone and CNIC are all required.');
 
-    if (editing) {
-      updateMember(member.id, {
-        name: form.name,
-        phone: form.phone,
-        email: form.email,
-        cnic: form.cnic,
-        cnicImage: form.cnicImage,
-        photo: form.photo,
-        type: form.type,
-        expiryDate,
-        status: new Date(expiryDate) >= new Date() ? 'Active' : 'Expired',
-      });
-    } else {
-      addMember({
-        id: computedId,
-        name: form.name,
-        phone: form.phone,
-        email: form.email,
-        cnic: form.cnic,
-        cnicImage: form.cnicImage,
-        photo: form.photo,
-        type: form.type,
-        joinDate: new Date().toISOString().slice(0, 10),
-        expiryDate,
-        status: 'Active',
-        visits: 0,
-        totalSpent: 0,
-      });
-      if (Number(form.price) > 0) {
-        addFinanceEntry({
-          type: 'In',
-          category: 'Membership',
-          amount: Number(form.price),
-          description: `New ${form.type} membership — ${form.name}`,
+    setSaving(true);
+    // Upload newly picked images to Storage; keep existing values otherwise.
+    let photo = form.photo;
+    let cnicImage = form.cnicImage;
+    try {
+      if (photoFile) photo = await uploadToBucket('member-photos', photoFile, 'members/');
+      if (cnicFile) cnicImage = await uploadToBucket('member-cnic', cnicFile, 'cnic/');
+    } catch (e) {
+      setSaving(false);
+      return setError(`Image upload failed: ${e?.message || 'unknown error'}`);
+    }
+
+    try {
+      if (editing) {
+        await updateMember(member.id, {
+          name: form.name,
+          phone: form.phone,
+          email: form.email,
+          cnic: form.cnic,
+          cnicImage,
+          photo,
+          type: form.type,
+          expiryDate,
+          status: new Date(expiryDate) >= new Date() ? 'Active' : 'Expired',
         });
+      } else {
+        await addMember({
+          id: computedId,
+          name: form.name,
+          phone: form.phone,
+          email: form.email,
+          cnic: form.cnic,
+          cnicImage,
+          photo,
+          type: form.type,
+          joinDate: new Date().toISOString().slice(0, 10),
+          expiryDate,
+          status: 'Active',
+          visits: 0,
+          totalSpent: 0,
+        });
+        if (Number(form.price) > 0) {
+          await addFinanceEntry({
+            type: 'In',
+            category: 'Membership',
+            amount: Number(form.price),
+            description: `New ${form.type} membership — ${form.name}`,
+          });
+        }
       }
+    } finally {
+      setSaving(false);
     }
     onClose();
   };
@@ -200,7 +224,7 @@ export default function MemberDialog({ open, onClose, member }) {
             <Section label="Member photo">
               <button
                 type="button"
-                onClick={() => (form.photo ? setField('photo', null) : photoInputRef.current?.click())}
+                onClick={() => { if (form.photo) { setField('photo', null); setPhotoFile(null); } else photoInputRef.current?.click(); }}
                 className="w-full rounded-2xl border-2 border-dashed border-brand-300 bg-brand-50 hover:bg-brand-100 transition px-4 py-5 flex items-center justify-center gap-3"
               >
                 {form.photo ? (
@@ -246,7 +270,7 @@ export default function MemberDialog({ open, onClose, member }) {
             <Section label="Identity verification">
               <button
                 type="button"
-                onClick={() => (form.cnicImage ? setField('cnicImage', null) : idInputRef.current?.click())}
+                onClick={() => { if (form.cnicImage) { setField('cnicImage', null); setCnicFile(null); } else idInputRef.current?.click(); }}
                 className="w-full rounded-2xl border-2 border-dashed border-brand-300 bg-brand-50 hover:bg-brand-100 transition px-4 py-4 flex items-center gap-3"
               >
                 {form.cnicImage ? (
@@ -357,7 +381,7 @@ export default function MemberDialog({ open, onClose, member }) {
           ) : <span />}
           <div className="flex gap-2">
             <button onClick={onClose} className="btn-ghost">Cancel</button>
-            <button onClick={handleSave} disabled={!canSubmit} className="btn-primary">
+            <button onClick={handleSave} disabled={!canSubmit || saving} className="btn-primary">
               {editing ? <><Save className="w-4 h-4" /> Save changes</> : <><Plus className="w-4 h-4" /> Create membership</>}
             </button>
           </div>
