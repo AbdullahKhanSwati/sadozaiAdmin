@@ -177,7 +177,14 @@ function TableCard({ t, onEdit, onBook }) {
           <button onClick={onEdit} className="btn-ghost px-2.5 py-1.5 text-xs">
             <Edit3 className="w-3.5 h-3.5" /> Edit
           </button>
-          <button onClick={onBook} className="btn-primary px-2.5 py-1.5 text-xs">Book</button>
+          <button
+            onClick={onBook}
+            disabled={t.status === 'Maintenance'}
+            title={t.status === 'Maintenance' ? 'Under maintenance — cannot be booked' : undefined}
+            className="btn-primary px-2.5 py-1.5 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Book
+          </button>
         </div>
       </div>
     </div>

@@ -97,6 +97,7 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
   const handleSave = () => {
     setError('');
     if (!table) return setError('Pick a table.');
+    if (!editing && table.status === 'Maintenance') return setError('This table is under maintenance and cannot be booked.');
     if (conflict) return setError('Selected duration overlaps an existing booking — pick a shorter duration or different start.');
     if (form.isMember && form.members.length === 0) return setError('Pick at least one member for this booking.');
     if (!form.isMember && !form.guestName) return setError('Enter the guest name.');
@@ -166,18 +167,24 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {tables.map((t) => {
                   const active = form.tableId === t.id;
+                  const maint = t.status === 'Maintenance';
                   return (
                     <button
                       key={t.id}
                       type="button"
-                      onClick={() => setField('tableId', t.id)}
+                      disabled={maint && !active}
+                      onClick={() => { if (!maint) setField('tableId', t.id); }}
+                      title={maint ? 'Under maintenance — cannot be booked' : undefined}
                       className={[
                         'rounded-xl p-2 border text-center transition',
+                        maint && !active ? 'border-slate-200 bg-slate-50 opacity-50 cursor-not-allowed' :
                         active ? 'bg-brand-50 border-brand-300 ring-2 ring-brand-300' : 'border-slate-200 hover:bg-slate-50',
                       ].join(' ')}
                     >
                       <div className="font-extrabold">T{t.number}</div>
-                      <div className="text-[10px] uppercase tracking-widest text-ink-400">{t.type}</div>
+                      <div className={['text-[10px] uppercase tracking-widest', maint ? 'text-amber-500 font-bold' : 'text-ink-400'].join(' ')}>
+                        {maint ? 'Maint.' : t.type}
+                      </div>
                     </button>
                   );
                 })}

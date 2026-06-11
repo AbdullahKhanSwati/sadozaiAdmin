@@ -112,6 +112,53 @@ export function ShotsProvider({ children }) {
     return () => { active = false; };
   }, [businessId]);
 
+  // Live sync: subscribe to Postgres changes so anything done elsewhere (e.g. a
+  // staff member marking a table for maintenance, or adding an expense from the
+  // mobile app) reflects in the dashboard instantly. On any change for this
+  // business we re-fetch just the affected table.
+  useEffect(() => {
+    if (!businessId) return;
+
+    const refetch = {
+      pool_tables: async () => {
+        const { data } = await supabase.from('pool_tables').select('*').order('number', { ascending: true });
+        setTables((data || []).map(rowToTable));
+      },
+      members: async () => {
+        const { data } = await supabase.from('members').select('*').order('created_at', { ascending: true });
+        setMembers((data || []).map(rowToMember));
+      },
+      bookings: async () => {
+        const { data } = await supabase.from('bookings').select('*').order('date', { ascending: true });
+        setBookings((data || []).map(rowToBooking));
+      },
+      transactions: async () => {
+        const { data } = await supabase.from('transactions').select('*').order('date', { ascending: true });
+        setFinance((data || []).map(rowToFinance));
+      },
+      staff: async () => {
+        const { data } = await supabase.from('staff').select('*').order('created_at', { ascending: true });
+        setStaff((data || []).map(rowToStaff));
+      },
+      tiers: async () => {
+        const { data } = await supabase.from('tiers').select('*').order('created_at', { ascending: true });
+        setTiers((data || []).map(rowToTier));
+      },
+    };
+
+    const channel = supabase.channel(`shots-admin-rt-${businessId}`);
+    Object.keys(refetch).forEach((table) => {
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table, filter: `business_id=eq.${businessId}` },
+        () => { refetch[table](); }
+      );
+    });
+    channel.subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [businessId]);
+
   // ---- Tables --------------------------------------------------------------
   const addTable = useCallback(async (data) => {
     const row = { ...toRow(data, TABLE_KEYS), business_id: businessId };
@@ -123,9 +170,19 @@ export function ShotsProvider({ children }) {
   }, [businessId]);
 
   const updateTable = useCallback(async (id, patch) => {
+    // Optimistic: reflect the change instantly, then persist and reconcile.
+    let prev = null;
+    setTables((arr) => arr.map((t) => {
+      if (t.id === id) { prev = t; return { ...t, ...patch }; }
+      return t;
+    }));
     const { data: updated, error } = await supabase
       .from('pool_tables').update(toRow(patch, TABLE_KEYS)).eq('id', id).select().single();
-    if (error) { console.error('updateTable', error); return; }
+    if (error) {
+      console.error('updateTable', error);
+      if (prev) setTables((arr) => arr.map((t) => (t.id === id ? prev : t))); // roll back
+      return;
+    }
     setTables((arr) => arr.map((t) => (t.id === id ? rowToTable(updated) : t)));
   }, []);
 

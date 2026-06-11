@@ -315,6 +315,31 @@ create policy "member cnic delete"
   using (bucket_id = 'member-cnic');
 
 -- =============================================================================
+-- REALTIME — let the mobile app receive live changes (e.g. a table set to
+-- Maintenance from the admin dashboard) without a manual refresh. Adds the
+-- operational tables to the supabase_realtime publication. RLS still applies,
+-- so each client only receives changes for its own business.
+-- =============================================================================
+do $$ begin
+  alter publication supabase_realtime add table public.pool_tables;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.members;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.bookings;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.transactions;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.staff;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.tiers;
+exception when duplicate_object then null; end $$;
+
+-- =============================================================================
 -- SEED — only the tenant registry (operational data stays empty)
 -- =============================================================================
 insert into public.businesses (id, name, type, tag, emoji, accent, accent_dark, available, summary, default_email, default_password, sort_order) values
