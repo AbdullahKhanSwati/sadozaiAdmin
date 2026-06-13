@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Calendar, Coins, Download, Edit3, Plus, Search, Users } from 'lucide-react';
-import { dateKey, rupees } from '../../data/shotsData.js';
+import { rupees, timeframeRange } from '../../data/shotsData.js';
 import {
   EmptyState, FilterChips, PageHeader, StatCard, StatusPill, Tabs,
 } from '../../components/ui.jsx';
@@ -15,20 +15,29 @@ const STATUS_ITEMS = (list) => [
   { value: 'Completed', label: 'Completed', count: list.filter((b) => b.status === 'Completed').length },
 ];
 
+const TIMEFRAMES = [
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This Week' },
+  { key: 'mtd', label: 'This Month' },
+  { key: 'lastMonth', label: 'Last Month' },
+  { key: 'year', label: 'This Year' },
+  { key: 'all', label: 'All Time' },
+];
+
 export default function Bookings() {
   const { bookings, tables } = useShots();
-  const today = dateKey(new Date());
-  const [scope, setScope] = useState('today');
+  const [timeframe, setTimeframe] = useState('mtd');
   const [status, setStatus] = useState('All');
   const [query, setQuery] = useState('');
   const [view, setView] = useState('list');
   const [dialog, setDialog] = useState({ open: false, booking: null });
+  const timeframeLabel = TIMEFRAMES.find((t) => t.key === timeframe)?.label || 'This Month';
 
   const scoped = useMemo(() => {
-    if (scope === 'today')    return bookings.filter((b) => b.date === today);
-    if (scope === 'upcoming') return bookings.filter((b) => b.date >= today);
-    return bookings;
-  }, [bookings, scope, today]);
+    const range = timeframeRange(timeframe, new Date());
+    const inRange = (d) => !range || (d >= range.start && d <= range.end);
+    return bookings.filter((b) => inRange(b.date));
+  }, [bookings, timeframe]);
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -39,11 +48,13 @@ export default function Bookings() {
     }).sort((a, b) => (a.date === b.date ? a.start.localeCompare(b.start) : (a.date > b.date ? 1 : -1)));
   }, [scoped, query, status]);
 
-  const todayList = bookings.filter((b) => b.date === today);
-  const todayRevenue = todayList.reduce((s, b) => s + (b.amount || 0), 0);
+  // Period totals (exclude cancelled from revenue).
+  const periodRevenue = scoped.filter((b) => b.status !== 'Cancelled').reduce((s, b) => s + (b.amount || 0), 0);
+  const periodPlayers = scoped.reduce((s, b) => s + (b.players || 0), 0);
+  const periodActive = scoped.filter((b) => b.status === 'Active').length;
 
   const exportCsv = () => {
-    downloadCsv(`bookings-${scope}-${csvDate()}.csv`, [
+    downloadCsv(`bookings-${timeframe}-${csvDate()}.csv`, [
       { label: 'Date', value: 'date' },
       { label: 'Start', value: 'start' },
       { label: 'End', value: 'end' },
@@ -64,6 +75,16 @@ export default function Bookings() {
         subtitle="See, manage, and create table bookings across all halls."
         actions={
           <>
+            <div className="relative">
+              <Calendar className="w-4 h-4 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <select
+                value={timeframe}
+                onChange={(e) => setTimeframe(e.target.value)}
+                className="input pl-9 pr-8 py-2 font-semibold cursor-pointer appearance-none"
+              >
+                {TIMEFRAMES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+              </select>
+            </div>
             <button onClick={exportCsv} className="btn-ghost"><Download className="w-4 h-4" /> Export CSV</button>
             <button onClick={() => setDialog({ open: true, booking: null })} className="btn-primary">
               <Plus className="w-4 h-4" /> New booking
@@ -73,23 +94,14 @@ export default function Bookings() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard icon={Calendar} label="Today's bookings" value={todayList.length} sub={`${todayList.filter((b) => b.status === 'Active').length} active right now`} accent="brand" />
-        <StatCard icon={Coins}    label="Today's revenue"  value={rupees(todayRevenue)} sub="From bookings only" accent="emerald" />
-        <StatCard icon={Users}    label="Players today"    value={todayList.reduce((s, b) => s + (b.players || 0), 0)} sub="Across all tables" accent="blue" />
-        <StatCard icon={Calendar} label="Upcoming"         value={bookings.filter((b) => b.date >= today && b.status === 'Upcoming').length} sub="Confirmed for later" accent="amber" />
+        <StatCard icon={Calendar} label={`Bookings · ${timeframeLabel}`} value={scoped.length} sub={`${periodActive} active`} accent="brand" />
+        <StatCard icon={Coins}    label={`Revenue · ${timeframeLabel}`}  value={rupees(periodRevenue)} sub="From bookings only" accent="emerald" />
+        <StatCard icon={Users}    label="Players"          value={periodPlayers} sub="Across all tables" accent="blue" />
+        <StatCard icon={Calendar} label="Upcoming"         value={scoped.filter((b) => b.status === 'Upcoming').length} sub="Confirmed for later" accent="amber" />
       </div>
 
       <div className="card p-4 mb-4">
         <div className="flex flex-col xl:flex-row gap-3 xl:items-center">
-          <Tabs
-            value={scope}
-            onChange={setScope}
-            items={[
-              { value: 'today',    label: 'Today' },
-              { value: 'upcoming', label: 'Upcoming' },
-              { value: 'all',      label: 'All' },
-            ]}
-          />
           <div className="relative flex-1 max-w-md">
             <Search className="w-4 h-4 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input

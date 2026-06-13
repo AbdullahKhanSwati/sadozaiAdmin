@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  BarChart3, Bell, ChevronsLeft, ChevronsRight, Grid3X3, LayoutDashboard,
+  ChevronsLeft, ChevronsRight, Grid3X3, LayoutDashboard,
   LogOut, Menu, Receipt, Search, Settings as SettingsIcon, ShieldCheck,
-  Users, Wallet, X, Calendar, Briefcase,
+  Users, X, Calendar, Briefcase,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -12,8 +12,6 @@ const navItems = [
   { to: '/admin/tables',      label: 'Tables',       icon: Grid3X3 },
   { to: '/admin/bookings',    label: 'Bookings',     icon: Calendar },
   { to: '/admin/memberships', label: 'Memberships',  icon: Users },
-  { to: '/admin/finance',     label: 'Finance',      icon: Wallet },
-  { to: '/admin/reports',     label: 'Reports',      icon: BarChart3 },
   { to: '/admin/expenses',    label: 'Expenses',     icon: Receipt },
   { to: '/admin/staff',       label: 'Staff',        icon: Briefcase },
   { to: '/admin/settings',    label: 'Settings',     icon: SettingsIcon },
@@ -101,11 +99,6 @@ export default function AdminLayout() {
                 ⌘K
               </kbd>
             </div>
-
-            <button className="relative p-2 rounded-xl hover:bg-slate-100">
-              <Bell className="w-5 h-5 text-ink-600" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-brand-500 rounded-full ring-2 ring-white" />
-            </button>
 
             <div className="hidden sm:flex items-center gap-3 pl-3 ml-1 border-l border-slate-200">
               <div className="w-9 h-9 rounded-full bg-brand-gradient flex items-center justify-center font-bold text-white text-sm shadow-brand">

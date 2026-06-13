@@ -2,11 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Calendar, Camera, Check, CreditCard, Mail, Phone, Plus, Save, Trash2, Upload, User, X,
 } from 'lucide-react';
-import {
-  generateMemberId, membershipDurations, rupees,
-} from '../../data/shotsData.js';
+import { generateMemberId, rupees } from '../../data/shotsData.js';
+
+// Memberships run for one year. Returns the date one year after `from`
+// (defaults to today), as a YYYY-MM-DD string.
+function oneYearFrom(from) {
+  const d = from ? new Date(from) : new Date();
+  d.setFullYear(d.getFullYear() + 1);
+  return d.toISOString().slice(0, 10);
+}
 import { useShots } from '../../store/ShotsStore.jsx';
-import { uploadToBucket } from '../../lib/supabase.js';
+import { uploadToBucket, signedUrl } from '../../lib/supabase.js';
 import MembershipVirtualCard from '../MembershipVirtualCard.jsx';
 
 const EMPTY = {
@@ -15,9 +21,10 @@ const EMPTY = {
   email: '',
   cnic: '',
   cnicImage: null,
+  cnicImageBack: null,
   photo: null,
   type: 'Premium',
-  durationLabel: '1 Year',
+  expiryDate: '',
   price: '',
 };
 
@@ -37,40 +44,59 @@ export default function MemberDialog({ open, onClose, member }) {
   const [error, setError] = useState('');
   const [photoFile, setPhotoFile] = useState(null);
   const [cnicFile, setCnicFile] = useState(null);
+  const [cnicBackFile, setCnicBackFile] = useState(null);
   const [saving, setSaving] = useState(false);
+  // Local data-URL previews of just-picked CNIC images (for instant display).
+  const [cnicPreview, setCnicPreview] = useState(null);
+  const [cnicBackPreview, setCnicBackPreview] = useState(null);
+  // Signed URLs for already-saved CNIC images (when editing).
+  const [cnicViewUrls, setCnicViewUrls] = useState({ front: null, back: null });
   const photoInputRef = useRef(null);
   const idInputRef = useRef(null);
+  const idBackInputRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
     if (editing) {
-      const months = Math.max(1, Math.round((new Date(member.expiryDate) - new Date(member.joinDate)) / (1000 * 60 * 60 * 24 * 30)));
-      const dur = membershipDurations.find((d) => d.months === months) || membershipDurations[3];
       setForm({
         name: member.name || '',
         phone: member.phone || '',
         email: member.email || '',
         cnic: member.cnic || '',
         cnicImage: member.cnicImage || null,
+        cnicImageBack: member.cnicImageBack || null,
         photo: member.photo || null,
         type: member.type || tiers[0]?.tier || 'Premium',
-        durationLabel: dur.label,
+        expiryDate: member.expiryDate || oneYearFrom(),
         price: '',
       });
     } else {
-      setForm({ ...EMPTY, type: tiers[tiers.length - 1]?.tier || 'Premium' });
+      setForm({ ...EMPTY, type: tiers[tiers.length - 1]?.tier || 'Premium', expiryDate: oneYearFrom() });
     }
     setPhotoFile(null);
     setCnicFile(null);
+    setCnicBackFile(null);
+    setCnicPreview(null);
+    setCnicBackPreview(null);
+    setCnicViewUrls({ front: null, back: null });
     setError('');
   }, [open, editing, member, tiers]);
 
-  const setField = (k, v) => setForm((s) => ({ ...s, [k]: v }));
+  // When editing, resolve viewable signed URLs for already-saved ID card images.
+  useEffect(() => {
+    if (!open || !editing) return;
+    let active = true;
+    (async () => {
+      const [front, back] = await Promise.all([
+        signedUrl('member-cnic', member?.cnicImage),
+        signedUrl('member-cnic', member?.cnicImageBack),
+      ]);
+      if (active) setCnicViewUrls({ front, back });
+    })();
+    return () => { active = false; };
+  }, [open, editing, member?.cnicImage, member?.cnicImageBack]);
 
-  const duration = useMemo(
-    () => membershipDurations.find((d) => d.label === form.durationLabel) || membershipDurations[3],
-    [form.durationLabel]
-  );
+  const setField = (k, v) => setForm((s) => ({ ...s, [k]: v }));
 
   const existingIds = useMemo(() => members.map((m) => m.id).filter((id) => !editing || id !== member?.id), [members, editing, member]);
 
@@ -80,14 +106,15 @@ export default function MemberDialog({ open, onClose, member }) {
     return generateMemberId(form.cnic, existingIds);
   }, [editing, member, form.cnic, existingIds]);
 
-  const expiryDate = useMemo(() => {
-    if (editing && form.durationLabel === membershipDurations.find((d) => d.months === Math.round((new Date(member.expiryDate) - new Date(member.joinDate)) / (1000 * 60 * 60 * 24 * 30)))?.label) {
-      return member.expiryDate;
-    }
-    const d = new Date();
-    d.setMonth(d.getMonth() + duration.months);
-    return d.toISOString().slice(0, 10);
-  }, [duration, editing, member, form.durationLabel]);
+  const expiryDate = form.expiryDate || oneYearFrom();
+
+  // Extend the membership by a year from whichever is later: today or the
+  // current expiry. Lets "edit → save" renew an existing member.
+  const extendOneYear = () => {
+    const cur = form.expiryDate ? new Date(form.expiryDate) : new Date();
+    const base = cur > new Date() ? form.expiryDate : undefined;
+    setField('expiryDate', oneYearFrom(base));
+  };
 
   const previewMember = {
     id: computedId || 'A------',
@@ -112,6 +139,26 @@ export default function MemberDialog({ open, onClose, member }) {
     if (!f) return;
     setCnicFile(f);
     setField('cnicImage', f.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => setCnicPreview(ev.target.result);
+    reader.readAsDataURL(f);
+  };
+
+  const onPickCnicBack = (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setCnicBackFile(f);
+    setField('cnicImageBack', f.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => setCnicBackPreview(ev.target.result);
+    reader.readAsDataURL(f);
+  };
+
+  // Open a stored (private) ID-card image in a new tab via a signed URL.
+  const viewImage = async (path) => {
+    const url = await signedUrl('member-cnic', path);
+    if (url) window.open(url, '_blank', 'noopener');
+    else alert('Could not open the image.');
   };
 
   const canSubmit = form.name && form.phone && form.cnic && computedId;
@@ -124,9 +171,11 @@ export default function MemberDialog({ open, onClose, member }) {
     // Upload newly picked images to Storage; keep existing values otherwise.
     let photo = form.photo;
     let cnicImage = form.cnicImage;
+    let cnicImageBack = form.cnicImageBack;
     try {
       if (photoFile) photo = await uploadToBucket('member-photos', photoFile, 'members/');
       if (cnicFile) cnicImage = await uploadToBucket('member-cnic', cnicFile, 'cnic/');
+      if (cnicBackFile) cnicImageBack = await uploadToBucket('member-cnic', cnicBackFile, 'cnic/');
     } catch (e) {
       setSaving(false);
       return setError(`Image upload failed: ${e?.message || 'unknown error'}`);
@@ -140,6 +189,7 @@ export default function MemberDialog({ open, onClose, member }) {
           email: form.email,
           cnic: form.cnic,
           cnicImage,
+          cnicImageBack,
           photo,
           type: form.type,
           expiryDate,
@@ -153,6 +203,7 @@ export default function MemberDialog({ open, onClose, member }) {
           email: form.email,
           cnic: form.cnic,
           cnicImage,
+          cnicImageBack,
           photo,
           type: form.type,
           joinDate: new Date().toISOString().slice(0, 10),
@@ -216,6 +267,15 @@ export default function MemberDialog({ open, onClose, member }) {
               <Calendar className="w-3.5 h-3.5" />
               Expires <span className="font-extrabold">{new Date(expiryDate).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
             </div>
+
+            {/* ID card images — shown below the membership card */}
+            <div>
+              <div className="text-[11px] uppercase tracking-widest text-ink-500 font-bold mb-2">ID card</div>
+              <div className="grid grid-cols-2 gap-2">
+                <IdCardPreview label="Front" src={cnicPreview || cnicViewUrls.front} />
+                <IdCardPreview label="Back" src={cnicBackPreview || cnicViewUrls.back} />
+              </div>
+            </div>
           </div>
 
           {/* FORM */}
@@ -267,34 +327,29 @@ export default function MemberDialog({ open, onClose, member }) {
             </Section>
 
             {/* Identity */}
-            <Section label="Identity verification">
-              <button
-                type="button"
-                onClick={() => { if (form.cnicImage) { setField('cnicImage', null); setCnicFile(null); } else idInputRef.current?.click(); }}
-                className="w-full rounded-2xl border-2 border-dashed border-brand-300 bg-brand-50 hover:bg-brand-100 transition px-4 py-4 flex items-center gap-3"
-              >
-                {form.cnicImage ? (
-                  <>
-                    <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center"><Check className="w-5 h-5" /></div>
-                    <div className="text-left flex-1">
-                      <div className="font-bold text-ink-800 text-sm">ID card uploaded</div>
-                      <div className="text-[11px] text-ink-500 truncate">{form.cnicImage}</div>
-                    </div>
-                    <X className="w-4 h-4 text-ink-400" />
-                  </>
-                ) : (
-                  <>
-                    <div className="w-10 h-10 rounded-xl bg-white shadow-soft flex items-center justify-center">
-                      <Upload className="w-5 h-5 text-brand-600" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-bold text-brand-700">Upload ID card</div>
-                      <div className="text-[11px] text-ink-500">Capture or pick from gallery</div>
-                    </div>
-                  </>
-                )}
-              </button>
+            <Section label="Identity verification" hint="Front & back of the ID card">
+              <div className="grid grid-cols-2 gap-3">
+                <IdCardSlot
+                  label="ID card — Front"
+                  filename={form.cnicImage}
+                  persisted={editing ? member.cnicImage : null}
+                  hasNewFile={!!cnicFile}
+                  onPick={() => idInputRef.current?.click()}
+                  onRemove={() => { setField('cnicImage', null); setCnicFile(null); }}
+                  onView={() => viewImage(member.cnicImage)}
+                />
+                <IdCardSlot
+                  label="ID card — Back"
+                  filename={form.cnicImageBack}
+                  persisted={editing ? member.cnicImageBack : null}
+                  hasNewFile={!!cnicBackFile}
+                  onPick={() => idBackInputRef.current?.click()}
+                  onRemove={() => { setField('cnicImageBack', null); setCnicBackFile(null); }}
+                  onView={() => viewImage(member.cnicImageBack)}
+                />
+              </div>
               <input ref={idInputRef} type="file" accept="image/*" className="hidden" onChange={onPickCnic} />
+              <input ref={idBackInputRef} type="file" accept="image/*" className="hidden" onChange={onPickCnicBack} />
 
               <Field label="CNIC" icon={<CreditCard className="w-4 h-4 text-ink-400" />} className="mt-3">
                 <input
@@ -324,7 +379,7 @@ export default function MemberDialog({ open, onClose, member }) {
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-extrabold">{t.tier}</span>
-                        <span className="text-xs font-bold text-ink-500">{rupees(t.monthly)}</span>
+                        <span className="text-xs font-bold text-ink-500">{rupees(t.monthly)}/yr</span>
                       </div>
                       <div className="text-[11px] text-ink-500 mt-0.5 line-clamp-1">{t.perks?.[0] || 'No perks listed'}</div>
                     </button>
@@ -333,26 +388,27 @@ export default function MemberDialog({ open, onClose, member }) {
               </div>
             </Section>
 
-            {/* Duration */}
-            <Section label="Expiration">
-              <div className="flex flex-wrap gap-1.5">
-                {membershipDurations.map((d) => {
-                  const active = form.durationLabel === d.label;
-                  return (
-                    <button
-                      key={d.label}
-                      type="button"
-                      onClick={() => setField('durationLabel', d.label)}
-                      className={[
-                        'px-3 py-1.5 rounded-full text-xs font-bold border',
-                        active ? 'bg-ink-900 text-white border-ink-900' : 'bg-white border-slate-200 text-ink-600 hover:bg-slate-50',
-                      ].join(' ')}
-                    >
-                      {d.label}
-                    </button>
-                  );
-                })}
+            {/* Membership term — 1 year; expiry editable */}
+            <Section label="Membership term" hint="Memberships run for 1 year">
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <label className="label">Expiry date</label>
+                  <input
+                    type="date"
+                    className="input"
+                    value={form.expiryDate}
+                    onChange={(e) => setField('expiryDate', e.target.value)}
+                  />
+                </div>
+                <button type="button" onClick={extendOneYear} className="btn-ghost whitespace-nowrap">
+                  <Calendar className="w-4 h-4" /> Extend 1 year
+                </button>
               </div>
+              {editing && (
+                <p className="text-[11px] text-ink-500 mt-2">
+                  Saving updates this member to the expiry above. Tap “Extend 1 year” to renew, or edit the date manually.
+                </p>
+              )}
             </Section>
 
             {/* Price (only when creating) */}
@@ -387,6 +443,53 @@ export default function MemberDialog({ open, onClose, member }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function IdCardPreview({ label, src }) {
+  return (
+    <div>
+      <div className="text-[11px] font-semibold text-ink-500 mb-1">{label}</div>
+      {src ? (
+        <a href={src} target="_blank" rel="noopener noreferrer" className="block">
+          <img src={src} alt={`ID card ${label}`} className="w-full h-24 object-cover rounded-xl border border-slate-200 hover:opacity-90 transition" />
+        </a>
+      ) : (
+        <div className="w-full h-24 rounded-xl border border-dashed border-slate-300 bg-slate-50 flex flex-col items-center justify-center text-ink-400">
+          <CreditCard className="w-5 h-5" />
+          <span className="text-[10px] mt-1">No image</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IdCardSlot({ label, filename, persisted, hasNewFile, onPick, onRemove, onView }) {
+  return (
+    <div className="rounded-2xl border-2 border-dashed border-brand-300 bg-brand-50 p-3">
+      <div className="text-[11px] font-bold text-ink-600 mb-2">{label}</div>
+      {filename ? (
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0"><Check className="w-4 h-4" /></div>
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold text-ink-800 text-xs">Attached</div>
+            <div className="text-[11px] text-ink-500 truncate">{filename}</div>
+          </div>
+          <button type="button" onClick={onRemove} className="p-1 rounded hover:bg-white/60"><X className="w-4 h-4 text-ink-400" /></button>
+        </div>
+      ) : (
+        <button type="button" onClick={onPick} className="w-full flex items-center gap-2 hover:opacity-80">
+          <div className="w-9 h-9 rounded-xl bg-white shadow-soft flex items-center justify-center shrink-0"><Upload className="w-4 h-4 text-brand-600" /></div>
+          <span className="text-xs font-bold text-brand-700">Upload image</span>
+        </button>
+      )}
+      {/* View only makes sense for an already-saved image and when no new pick is pending */}
+      {persisted && !hasNewFile && filename && (
+        <button type="button" onClick={onView} className="mt-2 text-[11px] font-bold text-brand-600 hover:underline">
+          View image
+        </button>
+      )}
     </div>
   );
 }

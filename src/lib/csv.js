@@ -6,16 +6,10 @@ function escapeCell(v) {
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function downloadCsv(filename, columns, rows) {
-  const header = columns.map((c) => escapeCell(c.label)).join(',');
-  const lines = (rows || []).map((r) =>
-    columns
-      .map((c) => escapeCell(typeof c.value === 'function' ? c.value(r) : r[c.value]))
-      .join(',')
-  );
+// Trigger a browser download for a finished CSV string.
+function triggerDownload(filename, csv) {
   // ﻿ BOM so Excel reads UTF-8 (₨, accents) correctly.
-  const csv = `﻿${[header, ...lines].join('\r\n')}`;
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -24,6 +18,26 @@ export function downloadCsv(filename, columns, rows) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+export function downloadCsv(filename, columns, rows) {
+  const header = columns.map((c) => escapeCell(c.label)).join(',');
+  const lines = (rows || []).map((r) =>
+    columns
+      .map((c) => escapeCell(typeof c.value === 'function' ? c.value(r) : r[c.value]))
+      .join(',')
+  );
+  triggerDownload(filename, [header, ...lines].join('\r\n'));
+}
+
+// Build a CSV from a 2D array of rows (each row = array of cells). Lets us
+// produce multi-section "report" exports (titles, blank spacer rows,
+// sub-tables) that a single flat table can't express. Numbers are written
+// raw (no "Rs." prefix) so spreadsheet formulas still work; put units in the
+// header label instead.
+export function downloadCsvMatrix(filename, matrix) {
+  const lines = (matrix || []).map((row) => (row || []).map(escapeCell).join(','));
+  triggerDownload(filename, lines.join('\r\n'));
 }
 
 export function csvDate() {

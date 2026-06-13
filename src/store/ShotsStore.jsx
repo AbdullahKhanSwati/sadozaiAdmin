@@ -21,12 +21,13 @@ const TABLE_KEYS = {
   number: 'number', type: 'type', location: 'location', status: 'status',
   condition: 'condition', lastCleaned: 'last_cleaned', memberRate: 'member_rate',
   nonMemberRate: 'non_member_rate', openTime: 'open_time', closeTime: 'close_time',
-  occupiedUntil: 'occupied_until', occupiedBy: 'occupied_by',
+  occupiedUntil: 'occupied_until', occupiedBy: 'occupied_by', image: 'image',
 };
 const MEMBER_KEYS = {
   name: 'name', type: 'type', cnic: 'cnic', joinDate: 'join_date',
   expiryDate: 'expiry_date', status: 'status', phone: 'phone', email: 'email',
-  visits: 'visits', totalSpent: 'total_spent', photo: 'photo', cnicImage: 'cnic_image',
+  visits: 'visits', totalSpent: 'total_spent', photo: 'photo',
+  cnicImage: 'cnic_image', cnicImageBack: 'cnic_image_back',
 };
 const BOOKING_KEYS = {
   tableId: 'table_id', tableNumber: 'table_number', date: 'date', start: 'start_time',
@@ -45,6 +46,9 @@ const STAFF_KEYS = {
 const TIER_KEYS = {
   tier: 'tier', monthly: 'monthly', color: 'color', icon: 'icon', perks: 'perks',
 };
+const TABLE_TYPE_KEYS = { name: 'name', sortOrder: 'sort_order' };
+const BOOKING_DURATION_KEYS = { minutes: 'minutes', sortOrder: 'sort_order' };
+const EXPENSE_CATEGORY_KEYS = { name: 'name', sortOrder: 'sort_order' };
 
 // Build a DB row (snake_case) from a (possibly partial) UI object.
 function toRow(obj, keymap) {
@@ -67,6 +71,9 @@ const rowToBooking = (r) => fromRow(r, BOOKING_KEYS);
 const rowToFinance = (r) => fromRow(r, FINANCE_KEYS);
 const rowToStaff = (r) => fromRow(r, STAFF_KEYS);
 const rowToTier = (r) => fromRow(r, TIER_KEYS);
+const rowToTableType = (r) => fromRow(r, TABLE_TYPE_KEYS);
+const rowToBookingDuration = (r) => fromRow(r, BOOKING_DURATION_KEYS);
+const rowToExpenseCategory = (r) => fromRow(r, EXPENSE_CATEGORY_KEYS);
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const nowTime = () => new Date().toTimeString().slice(0, 5);
@@ -81,24 +88,31 @@ export function ShotsProvider({ children }) {
   const [finance, setFinance] = useState([]);
   const [staff, setStaff] = useState([]);
   const [tiers, setTiers] = useState([]);
+  const [tableTypes, setTableTypes] = useState([]);
+  const [bookingDurations, setBookingDurations] = useState([]);
+  const [expenseCategories, setExpenseCategories] = useState([]);
   const [ready, setReady] = useState(false);
 
   // Initial load whenever the signed-in business changes.
   useEffect(() => {
     if (!businessId) {
       setTables([]); setMembers([]); setBookings([]);
-      setFinance([]); setStaff([]); setTiers([]); setReady(false);
+      setFinance([]); setStaff([]); setTiers([]);
+      setTableTypes([]); setBookingDurations([]); setExpenseCategories([]); setReady(false);
       return;
     }
     let active = true;
     (async () => {
-      const [t, m, b, f, s, ti] = await Promise.all([
+      const [t, m, b, f, s, ti, tt, bd, ec] = await Promise.all([
         supabase.from('pool_tables').select('*').order('number', { ascending: true }),
         supabase.from('members').select('*').order('created_at', { ascending: true }),
         supabase.from('bookings').select('*').order('date', { ascending: true }),
         supabase.from('transactions').select('*').order('date', { ascending: true }),
         supabase.from('staff').select('*').order('created_at', { ascending: true }),
         supabase.from('tiers').select('*').order('created_at', { ascending: true }),
+        supabase.from('table_types').select('*').order('sort_order', { ascending: true }),
+        supabase.from('booking_durations').select('*').order('minutes', { ascending: true }),
+        supabase.from('expense_categories').select('*').order('sort_order', { ascending: true }),
       ]);
       if (!active) return;
       setTables((t.data || []).map(rowToTable));
@@ -107,6 +121,9 @@ export function ShotsProvider({ children }) {
       setFinance((f.data || []).map(rowToFinance));
       setStaff((s.data || []).map(rowToStaff));
       setTiers((ti.data || []).map(rowToTier));
+      setTableTypes((tt.data || []).map(rowToTableType));
+      setBookingDurations((bd.data || []).map(rowToBookingDuration));
+      setExpenseCategories((ec.data || []).map(rowToExpenseCategory));
       setReady(true);
     })();
     return () => { active = false; };
@@ -143,6 +160,18 @@ export function ShotsProvider({ children }) {
       tiers: async () => {
         const { data } = await supabase.from('tiers').select('*').order('created_at', { ascending: true });
         setTiers((data || []).map(rowToTier));
+      },
+      table_types: async () => {
+        const { data } = await supabase.from('table_types').select('*').order('sort_order', { ascending: true });
+        setTableTypes((data || []).map(rowToTableType));
+      },
+      booking_durations: async () => {
+        const { data } = await supabase.from('booking_durations').select('*').order('minutes', { ascending: true });
+        setBookingDurations((data || []).map(rowToBookingDuration));
+      },
+      expense_categories: async () => {
+        const { data } = await supabase.from('expense_categories').select('*').order('sort_order', { ascending: true });
+        setExpenseCategories((data || []).map(rowToExpenseCategory));
       },
     };
 
@@ -313,22 +342,107 @@ export function ShotsProvider({ children }) {
     setTiers((arr) => arr.filter((t) => t.id !== id));
   }, []);
 
+  // ---- Table types ---------------------------------------------------------
+  const addTableType = useCallback(async (name) => {
+    const clean = (name || '').trim();
+    if (!clean) return null;
+    const sort_order = (tableTypes.length ? Math.max(...tableTypes.map((x) => x.sortOrder || 0)) : 0) + 1;
+    const { data: inserted, error } = await supabase
+      .from('table_types').insert({ name: clean, sort_order, business_id: businessId }).select().single();
+    if (error) { console.error('addTableType', error); throw error; }
+    const tt = rowToTableType(inserted);
+    setTableTypes((arr) => [...arr, tt]);
+    return tt;
+  }, [businessId, tableTypes]);
+
+  const updateTableType = useCallback(async (id, name) => {
+    const { data: updated, error } = await supabase
+      .from('table_types').update({ name: (name || '').trim() }).eq('id', id).select().single();
+    if (error) { console.error('updateTableType', error); throw error; }
+    setTableTypes((arr) => arr.map((t) => (t.id === id ? rowToTableType(updated) : t)));
+  }, []);
+
+  const deleteTableType = useCallback(async (id) => {
+    const { error } = await supabase.from('table_types').delete().eq('id', id);
+    if (error) { console.error('deleteTableType', error); return; }
+    setTableTypes((arr) => arr.filter((t) => t.id !== id));
+  }, []);
+
+  // ---- Booking durations ---------------------------------------------------
+  const addBookingDuration = useCallback(async (minutes) => {
+    const mins = Number(minutes);
+    if (!mins || mins <= 0) return null;
+    const sort_order = (bookingDurations.length ? Math.max(...bookingDurations.map((x) => x.sortOrder || 0)) : 0) + 1;
+    const { data: inserted, error } = await supabase
+      .from('booking_durations').insert({ minutes: mins, sort_order, business_id: businessId }).select().single();
+    if (error) { console.error('addBookingDuration', error); throw error; }
+    const bd = rowToBookingDuration(inserted);
+    setBookingDurations((arr) => [...arr, bd].sort((a, b) => a.minutes - b.minutes));
+    return bd;
+  }, [businessId, bookingDurations]);
+
+  const updateBookingDuration = useCallback(async (id, minutes) => {
+    const mins = Number(minutes);
+    const { data: updated, error } = await supabase
+      .from('booking_durations').update({ minutes: mins }).eq('id', id).select().single();
+    if (error) { console.error('updateBookingDuration', error); throw error; }
+    setBookingDurations((arr) => arr.map((d) => (d.id === id ? rowToBookingDuration(updated) : d)).sort((a, b) => a.minutes - b.minutes));
+  }, []);
+
+  const deleteBookingDuration = useCallback(async (id) => {
+    const { error } = await supabase.from('booking_durations').delete().eq('id', id);
+    if (error) { console.error('deleteBookingDuration', error); return; }
+    setBookingDurations((arr) => arr.filter((d) => d.id !== id));
+  }, []);
+
+  // ---- Expense categories --------------------------------------------------
+  const addExpenseCategory = useCallback(async (name) => {
+    const clean = (name || '').trim();
+    if (!clean) return null;
+    const sort_order = (expenseCategories.length ? Math.max(...expenseCategories.map((x) => x.sortOrder || 0)) : 0) + 1;
+    const { data: inserted, error } = await supabase
+      .from('expense_categories').insert({ name: clean, sort_order, business_id: businessId }).select().single();
+    if (error) { console.error('addExpenseCategory', error); throw error; }
+    const ec = rowToExpenseCategory(inserted);
+    setExpenseCategories((arr) => [...arr, ec]);
+    return ec;
+  }, [businessId, expenseCategories]);
+
+  const updateExpenseCategory = useCallback(async (id, name) => {
+    const { data: updated, error } = await supabase
+      .from('expense_categories').update({ name: (name || '').trim() }).eq('id', id).select().single();
+    if (error) { console.error('updateExpenseCategory', error); throw error; }
+    setExpenseCategories((arr) => arr.map((c) => (c.id === id ? rowToExpenseCategory(updated) : c)));
+  }, []);
+
+  const deleteExpenseCategory = useCallback(async (id) => {
+    const { error } = await supabase.from('expense_categories').delete().eq('id', id);
+    if (error) { console.error('deleteExpenseCategory', error); return; }
+    setExpenseCategories((arr) => arr.filter((c) => c.id !== id));
+  }, []);
+
   const value = useMemo(() => ({
-    tables, members, bookings, finance, staff, tiers, ready,
+    tables, members, bookings, finance, staff, tiers, tableTypes, bookingDurations, expenseCategories, ready,
     addTable, updateTable, deleteTable,
     addMember, updateMember, deleteMember,
     addBooking, updateBooking, deleteBooking,
     addFinanceEntry,
     addStaff, updateStaff, deleteStaff,
     addTier, updateTier, deleteTier,
+    addTableType, updateTableType, deleteTableType,
+    addBookingDuration, updateBookingDuration, deleteBookingDuration,
+    addExpenseCategory, updateExpenseCategory, deleteExpenseCategory,
   }), [
-    tables, members, bookings, finance, staff, tiers, ready,
+    tables, members, bookings, finance, staff, tiers, tableTypes, bookingDurations, expenseCategories, ready,
     addTable, updateTable, deleteTable,
     addMember, updateMember, deleteMember,
     addBooking, updateBooking, deleteBooking,
     addFinanceEntry,
     addStaff, updateStaff, deleteStaff,
     addTier, updateTier, deleteTier,
+    addTableType, updateTableType, deleteTableType,
+    addBookingDuration, updateBookingDuration, deleteBookingDuration,
+    addExpenseCategory, updateExpenseCategory, deleteExpenseCategory,
   ]);
 
   return <ShotsContext.Provider value={value}>{children}</ShotsContext.Provider>;

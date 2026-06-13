@@ -4,8 +4,8 @@ import {
   Search, Trash2, User, Users, X,
 } from 'lucide-react';
 import {
-  addMinutes, bookedIntervalsFor, bookingDurations, buildIntervals, dateKey,
-  intervalsForRange, nextSevenDays, rupees,
+  addMinutes, bookedIntervalsFor, buildIntervals, dateKey,
+  intervalsForRange, nextSevenDays, rupees, minutesToLabel,
 } from '../../data/shotsData.js';
 import { useShots } from '../../store/ShotsStore.jsx';
 
@@ -15,7 +15,7 @@ const blankPicker = (defaults) => ({
   tableId: defaults?.tableId || null,
   date: defaults?.date || dateKey(new Date()),
   start: defaults?.start || '11:00',
-  durationIdx: 3, // 1h
+  durationMin: 60, // 1 hr
   isMember: true,
   members: [],
   guestName: '',
@@ -26,22 +26,30 @@ const blankPicker = (defaults) => ({
 });
 
 export default function BookingDialog({ open, onClose, booking, defaults }) {
-  const { tables, members, bookings, addBooking, updateBooking, deleteBooking } = useShots();
+  const { tables, members, bookings, bookingDurations, addBooking, updateBooking, deleteBooking } = useShots();
   const editing = !!booking;
   const [form, setForm] = useState(() => blankPicker(defaults));
   const [error, setError] = useState('');
   const [memberQuery, setMemberQuery] = useState('');
 
+  // Only the durations configured in Settings → Booking durations are offered.
+  const durations = useMemo(
+    () => [...bookingDurations]
+      .sort((a, b) => a.minutes - b.minutes)
+      .map((d) => ({ minutes: d.minutes, label: minutesToLabel(d.minutes) })),
+    [bookingDurations]
+  );
+
   useEffect(() => {
     if (!open) return;
+    const defaultMin = durations.find((d) => d.minutes === 60)?.minutes ?? durations[0]?.minutes ?? 60;
     if (editing) {
       const mins = (booking.intervals?.length || 4) * 15;
-      const durationIdx = bookingDurations.findIndex((d) => d.minutes === mins);
       setForm({
         tableId: booking.tableId,
         date: booking.date,
         start: booking.start,
-        durationIdx: durationIdx === -1 ? 3 : durationIdx,
+        durationMin: durations.some((d) => d.minutes === mins) ? mins : defaultMin,
         isMember: booking.isMember !== false,
         members: booking.members?.map((m) => ({ id: m.id, name: m.name, type: m.type })) || (booking.memberId ? [{ id: booking.memberId, name: booking.memberName, type: booking.memberType }] : []),
         guestName: !booking.isMember ? booking.memberName : '',
@@ -51,16 +59,16 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
         discountReason: booking.discount?.reason || '',
       });
     } else {
-      setForm(blankPicker(defaults));
+      setForm({ ...blankPicker(defaults), durationMin: defaultMin });
     }
     setError('');
     setMemberQuery('');
-  }, [open, editing, booking, defaults]);
+  }, [open, editing, booking, defaults, durations]);
 
   const setField = (k, v) => setForm((s) => ({ ...s, [k]: v }));
 
   const table = useMemo(() => tables.find((t) => t.id === form.tableId), [tables, form.tableId]);
-  const duration = bookingDurations[form.durationIdx];
+  const duration = durations.find((d) => d.minutes === form.durationMin) || durations[0];
   const endValue = useMemo(() => (form.start && duration ? addMinutes(form.start, duration.minutes) : ''), [form.start, duration]);
   const intervals = useMemo(() => (form.start && duration ? intervalsForRange(form.start, duration.minutes) : []), [form.start, duration]);
   const existingBooked = useMemo(() => {
@@ -98,6 +106,7 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
     setError('');
     if (!table) return setError('Pick a table.');
     if (!editing && table.status === 'Maintenance') return setError('This table is under maintenance and cannot be booked.');
+    if (!duration) return setError('No booking durations are set up. Add them in Settings → Booking durations.');
     if (conflict) return setError('Selected duration overlaps an existing booking — pick a shorter duration or different start.');
     if (form.isMember && form.members.length === 0) return setError('Pick at least one member for this booking.');
     if (!form.isMember && !form.guestName) return setError('Enter the guest name.');
@@ -254,26 +263,32 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
               )}
             </Section>
 
-            {/* Duration */}
+            {/* Duration — only the options configured in Settings */}
             <Section label="Duration">
-              <div className="flex flex-wrap gap-1.5">
-                {bookingDurations.map((d, i) => {
-                  const active = form.durationIdx === i;
-                  return (
-                    <button
-                      key={d.label}
-                      type="button"
-                      onClick={() => setField('durationIdx', i)}
-                      className={[
-                        'px-3 py-1.5 rounded-full text-xs font-bold border',
-                        active ? 'bg-ink-900 text-white border-ink-900' : 'bg-white border-slate-200 text-ink-600 hover:bg-slate-50',
-                      ].join(' ')}
-                    >
-                      {d.label}
-                    </button>
-                  );
-                })}
-              </div>
+              {durations.length === 0 ? (
+                <p className="text-xs text-ink-500">
+                  No booking durations set up yet. Add them in <span className="font-semibold">Settings → Booking durations</span>.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {durations.map((d) => {
+                    const active = form.durationMin === d.minutes;
+                    return (
+                      <button
+                        key={d.minutes}
+                        type="button"
+                        onClick={() => setField('durationMin', d.minutes)}
+                        className={[
+                          'px-3 py-1.5 rounded-full text-xs font-bold border',
+                          active ? 'bg-ink-900 text-white border-ink-900' : 'bg-white border-slate-200 text-ink-600 hover:bg-slate-50',
+                        ].join(' ')}
+                      >
+                        {d.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               <div className="text-xs text-ink-500 mt-2">
                 Ends at <span className="font-bold text-ink-800">{endValue || '—'}</span>
               </div>

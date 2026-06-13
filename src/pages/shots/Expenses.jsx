@@ -1,19 +1,37 @@
 import { useMemo, useState } from 'react';
-import { Plus, Receipt, Search, TrendingDown, X } from 'lucide-react';
+import { Calendar, Plus, Receipt, Search, Tags, TrendingDown, X } from 'lucide-react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
-import { expenseCategories, rupees } from '../../data/shotsData.js';
+import { rupees, timeframeRange } from '../../data/shotsData.js';
 import { FilterChips, PageHeader, StatCard, EmptyState } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
+import ExpenseCategoriesDialog from '../../components/dialogs/ExpenseCategoriesDialog.jsx';
 
 const COLORS = ['#E53E3E', '#F4B860', '#3B82F6', '#10B981', '#A855F7', '#FF6B6B', '#64748B', '#0EA5E9'];
 
+const TIMEFRAMES = [
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This Week' },
+  { key: 'mtd', label: 'This Month' },
+  { key: 'lastMonth', label: 'Last Month' },
+  { key: 'year', label: 'This Year' },
+  { key: 'all', label: 'All Time' },
+];
+
 export default function Expenses() {
-  const { finance, addFinanceEntry } = useShots();
+  const { finance, addFinanceEntry, expenseCategories } = useShots();
   const [cat, setCat] = useState('All');
   const [query, setQuery] = useState('');
   const [addOpen, setAddOpen] = useState(false);
+  const [catsOpen, setCatsOpen] = useState(false);
+  const [timeframe, setTimeframe] = useState('mtd');
+  const timeframeLabel = TIMEFRAMES.find((t) => t.key === timeframe)?.label || 'This Month';
 
-  const expenses = finance.filter((f) => f.type === 'Out');
+  const categoryNames = expenseCategories.map((c) => c.name);
+  const expenses = useMemo(() => {
+    const range = timeframeRange(timeframe, new Date());
+    const inRange = (d) => !range || (d >= range.start && d <= range.end);
+    return finance.filter((f) => f.type === 'Out' && inRange(f.date));
+  }, [finance, timeframe]);
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -29,7 +47,7 @@ export default function Expenses() {
     return Array.from(map.entries()).map(([category, amount]) => ({ category, amount }));
   }, [expenses]);
 
-  const FILTERS = [{ value: 'All', label: 'All', count: expenses.length }, ...expenseCategories.map((c) => ({
+  const FILTERS = [{ value: 'All', label: 'All', count: expenses.length }, ...categoryNames.map((c) => ({
     value: c, label: c, count: expenses.filter((e) => e.category === c).length,
   }))];
 
@@ -40,14 +58,25 @@ export default function Expenses() {
         subtitle="Log every cost — repairs, utilities, supplies, salaries — and see where money goes."
         actions={
           <>
+            <div className="relative">
+              <Calendar className="w-4 h-4 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <select
+                value={timeframe}
+                onChange={(e) => setTimeframe(e.target.value)}
+                className="input pl-9 pr-8 py-2 font-semibold cursor-pointer appearance-none"
+              >
+                {TIMEFRAMES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+              </select>
+            </div>
+            <button onClick={() => setCatsOpen(true)} className="btn-ghost"><Tags className="w-4 h-4" /> Manage categories</button>
             <button onClick={() => setAddOpen(true)} className="btn-primary"><Plus className="w-4 h-4" /> Add expense</button>
           </>
         }
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard icon={Receipt}       label="Total expenses"    value={rupees(expenses.reduce((s, e) => s + e.amount, 0))} sub={`${expenses.length} entries`} accent="rose" />
-        <StatCard icon={TrendingDown}  label="This month"        value={rupees(thisMonthExpense(expenses))} sub="Month to date" accent="brand" />
+        <StatCard icon={TrendingDown}  label={`Total · ${timeframeLabel}`} value={rupees(expenses.reduce((s, e) => s + e.amount, 0))} sub={`${expenses.length} entries`} accent="rose" />
+        <StatCard icon={Receipt}       label="Entries"           value={expenses.length} sub={timeframeLabel} accent="brand" />
         <StatCard icon={Receipt}       label="Biggest category"  value={biggestCategory(byCat)?.category || '—'} sub={biggestCategory(byCat) ? rupees(biggestCategory(byCat).amount) : ''} accent="amber" />
         <StatCard icon={Receipt}       label="Avg / entry"       value={rupees(Math.round(expenses.reduce((s, e) => s + e.amount, 0) / Math.max(expenses.length, 1)))} accent="slate" />
       </div>
@@ -133,27 +162,20 @@ export default function Expenses() {
         </div>
       </div>
 
-      {addOpen && <AddExpenseModal onClose={() => setAddOpen(false)} onSave={(data) => { addFinanceEntry({ ...data, type: 'Out' }); setAddOpen(false); }} />}
+      {addOpen && <AddExpenseModal categories={categoryNames} onClose={() => setAddOpen(false)} onSave={(data) => { addFinanceEntry({ ...data, type: 'Out' }); setAddOpen(false); }} />}
+      <ExpenseCategoriesDialog open={catsOpen} onClose={() => setCatsOpen(false)} />
     </>
   );
-}
-
-function thisMonthExpense(list) {
-  const d = new Date();
-  return list.filter((e) => {
-    const ed = new Date(e.date);
-    return ed.getFullYear() === d.getFullYear() && ed.getMonth() === d.getMonth();
-  }).reduce((s, e) => s + e.amount, 0);
 }
 
 function biggestCategory(arr) {
   return [...arr].sort((a, b) => b.amount - a.amount)[0];
 }
 
-function AddExpenseModal({ onClose, onSave }) {
+function AddExpenseModal({ categories, onClose, onSave }) {
   const [form, setForm] = useState({
     description: '',
-    category: expenseCategories[0],
+    category: categories[0] || '',
     amount: '',
     date: new Date().toISOString().slice(0, 10),
     time: new Date().toTimeString().slice(0, 5),
@@ -183,7 +205,8 @@ function AddExpenseModal({ onClose, onSave }) {
           <div>
             <label className="label">Category</label>
             <select className="input" value={form.category} onChange={(e) => set('category', e.target.value)}>
-              {expenseCategories.map((c) => <option key={c}>{c}</option>)}
+              {categories.length === 0 && <option value="">No categories — add some first</option>}
+              {categories.map((c) => <option key={c}>{c}</option>)}
             </select>
           </div>
           <div>

@@ -8,8 +8,6 @@ import Tables from './pages/shots/Tables.jsx';
 import Bookings from './pages/shots/Bookings.jsx';
 import Memberships from './pages/shots/Memberships.jsx';
 import MemberDetail from './pages/shots/MemberDetail.jsx';
-import Finance from './pages/shots/Finance.jsx';
-import Reports from './pages/shots/Reports.jsx';
 import Expenses from './pages/shots/Expenses.jsx';
 import Staff from './pages/shots/Staff.jsx';
 import Settings from './pages/shots/Settings.jsx';
@@ -38,8 +36,6 @@ function Shell() {
         <Route path="bookings" element={<Bookings />} />
         <Route path="memberships" element={<Memberships />} />
         <Route path="memberships/:id" element={<MemberDetail />} />
-        <Route path="finance" element={<Finance />} />
-        <Route path="reports" element={<Reports />} />
         <Route path="expenses" element={<Expenses />} />
         <Route path="staff" element={<Staff />} />
         <Route path="settings" element={<Settings />} />

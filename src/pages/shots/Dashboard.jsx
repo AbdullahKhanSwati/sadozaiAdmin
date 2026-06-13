@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Activity, ArrowRight, Calendar, Coins, Download, Grid3X3, Sparkles,
+  ArrowRight, Calendar, Coins, Download, Grid3X3,
   TrendingDown, TrendingUp, Users, Wallet,
 } from 'lucide-react';
 import {
@@ -9,28 +9,60 @@ import {
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import {
-  getMTDFinance, dailyRevenueSeries, categoryBreakdown, rupees, dateKey,
+  dailyRevenueSeries, categoryBreakdown, rupees, dateKey, timeframeRange,
 } from '../../data/shotsData.js';
 import { PageHeader, StatCard, StatusPill, TierBadge } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
-import { downloadCsv, csvDate } from '../../lib/csv.js';
-import BookingDialog from '../../components/dialogs/BookingDialog.jsx';
+import { downloadCsvMatrix, csvDate } from '../../lib/csv.js';
 
 const PIE_COLORS = ['#E53E3E', '#F4B860', '#3B82F6', '#10B981', '#A855F7', '#FF6B6B', '#64748B'];
 
+const TIMEFRAMES = [
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This Week' },
+  { key: 'mtd', label: 'This Month' },
+  { key: 'lastMonth', label: 'Last Month' },
+  { key: 'year', label: 'This Year' },
+  { key: 'all', label: 'All Time' },
+];
+
 export default function Dashboard() {
   const { tables, members, bookings, finance } = useShots();
-  const [newBookingOpen, setNewBookingOpen] = useState(false);
+  const [timeframe, setTimeframe] = useState('mtd');
   const today = dateKey(new Date());
 
-  const mtd = useMemo(() => getMTDFinance(finance, new Date()), [finance]);
-  const mtdIncome  = mtd.filter((f) => f.type === 'In').reduce((s, f) => s + f.amount, 0);
-  const mtdExpense = mtd.filter((f) => f.type === 'Out').reduce((s, f) => s + f.amount, 0);
-  const mtdNet = mtdIncome - mtdExpense;
+  const timeframeLabel = TIMEFRAMES.find((t) => t.key === timeframe)?.label || 'This Month';
 
+  // Period-scoped data + totals — drives both the on-screen figures and the export.
+  const period = useMemo(() => {
+    const range = timeframeRange(timeframe, new Date());
+    const inRange = (d) => !range || (d >= range.start && d <= range.end);
+
+    const periodBookings = bookings
+      .filter((b) => b.status !== 'Cancelled' && inRange(b.date))
+      .sort((a, b) => (a.date === b.date ? (a.start || '').localeCompare(b.start || '') : a.date < b.date ? -1 : 1));
+    const periodFinance = finance
+      .filter((f) => inRange(f.date))
+      .sort((a, b) => (a.date === b.date ? (a.time || '').localeCompare(b.time || '') : a.date < b.date ? -1 : 1));
+
+    const bookingRevenue    = periodBookings.reduce((s, b) => s + (b.amount || 0), 0);
+    const membershipSales   = periodFinance.filter((f) => f.type === 'In' && f.category === 'Membership');
+    const otherIncome       = periodFinance.filter((f) => f.type === 'In' && f.category !== 'Membership');
+    const expenses          = periodFinance.filter((f) => f.type === 'Out');
+    const membershipRevenue = membershipSales.reduce((s, f) => s + (f.amount || 0), 0);
+    const otherIncomeTotal  = otherIncome.reduce((s, f) => s + (f.amount || 0), 0);
+    const expensesTotal     = expenses.reduce((s, f) => s + (f.amount || 0), 0);
+    const totalRevenue      = bookingRevenue + membershipRevenue + otherIncomeTotal;
+
+    return {
+      range, periodBookings, membershipSales, otherIncome, expenses,
+      bookingRevenue, membershipRevenue, otherIncomeTotal, expensesTotal,
+      totalRevenue, netProfit: totalRevenue - expensesTotal,
+    };
+  }, [timeframe, bookings, finance]);
+
+  // The "Today's bookings" widget is always today, independent of the filter.
   const todayBookings = bookings.filter((b) => b.date === today);
-  const todayRevenue = todayBookings.reduce((s, b) => s + (b.amount || 0), 0)
-    + finance.filter((f) => f.date === today && f.type === 'In').reduce((s, f) => s + f.amount, 0);
 
   const activeMembers = members.filter((m) => m.status === 'Active').length;
   const expiredMembers = members.filter((m) => m.status === 'Expired').length;
@@ -43,16 +75,102 @@ export default function Dashboard() {
 
   const recent = [...finance].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 6);
 
+  // Detailed, multi-section CSV report for the selected timeframe.
   const exportCsv = () => {
-    const ledger = [...finance].sort((a, b) => (a.date < b.date ? 1 : -1));
-    downloadCsv(`shots-transactions-${csvDate()}.csv`, [
-      { label: 'Date', value: 'date' },
-      { label: 'Time', value: 'time' },
-      { label: 'Type', value: (t) => (t.type === 'In' ? 'Income' : 'Expense') },
-      { label: 'Category', value: 'category' },
-      { label: 'Description', value: 'description' },
-      { label: 'Amount (Rs.)', value: 'amount' },
-    ], ledger);
+    const {
+      range, periodBookings, membershipSales, otherIncome, expenses,
+      bookingRevenue, membershipRevenue, otherIncomeTotal, expensesTotal, totalRevenue, netProfit,
+    } = period;
+    const rangeText = range ? `${range.start} to ${range.end}` : 'All time';
+    const tableNo = (n) => (n ? `Table ${n}` : 'General');
+    const discountNote = (d) => {
+      if (!d) return '';
+      const base = d.type === 'percent' ? `${d.value}% off` : `Rs. ${d.value} off`;
+      return d.reason ? `${base} (${d.reason})` : base;
+    };
+
+    const M = [];
+    const blank = () => M.push([]);
+
+    // ---- Header ----
+    M.push(['SHOTS — Business Report']);
+    M.push(['Period', timeframeLabel, rangeText]);
+    M.push(['Generated', new Date().toLocaleString('en-PK')]);
+    blank();
+
+    // ---- Summary ----
+    M.push(['SUMMARY']);
+    M.push(['Metric', 'Amount (Rs.)']);
+    M.push(['Booking Revenue', bookingRevenue]);
+    M.push(['Membership Revenue', membershipRevenue]);
+    M.push(['Other Income', otherIncomeTotal]);
+    M.push(['Total Revenue', totalRevenue]);
+    M.push(['Total Expenses', expensesTotal]);
+    M.push(['Net Profit', netProfit]);
+    blank();
+
+    // ---- Daily breakdown ----
+    const dayKeys = Array.from(new Set([
+      ...periodBookings.map((b) => b.date),
+      ...membershipSales.map((f) => f.date),
+      ...otherIncome.map((f) => f.date),
+      ...expenses.map((f) => f.date),
+    ])).filter(Boolean).sort();
+    M.push(['DAILY BREAKDOWN']);
+    M.push(['Date', 'Booking Revenue', 'Membership Revenue', 'Other Income', 'Expenses', 'Net (Rs.)']);
+    dayKeys.forEach((d) => {
+      const bRev = periodBookings.filter((b) => b.date === d).reduce((s, b) => s + (b.amount || 0), 0);
+      const mRev = membershipSales.filter((f) => f.date === d).reduce((s, f) => s + (f.amount || 0), 0);
+      const oRev = otherIncome.filter((f) => f.date === d).reduce((s, f) => s + (f.amount || 0), 0);
+      const exp  = expenses.filter((f) => f.date === d).reduce((s, f) => s + (f.amount || 0), 0);
+      M.push([d, bRev, mRev, oRev, exp, bRev + mRev + oRev - exp]);
+    });
+    blank();
+
+    // ---- Bookings (sales) ----
+    M.push([`BOOKINGS — SALES (${periodBookings.length})`]);
+    M.push(['Date', 'Start', 'End', 'Table', 'Type', 'Customer', 'Member ID', 'Tier', 'Players', 'Duration (min)', 'Subtotal (Rs.)', 'Discount (Rs.)', 'Discount Note', 'Amount (Rs.)', 'Status']);
+    periodBookings.forEach((b) => {
+      M.push([
+        b.date, b.start || '', b.end || '', `Table ${b.tableNumber}`,
+        b.isMember ? 'Member' : 'Walk-in', b.memberName || '',
+        b.isMember ? (b.memberId || '') : '', b.isMember ? (b.memberType || '') : '',
+        b.players || 1, (b.intervals?.length || 0) * 15,
+        b.subtotal ?? b.amount ?? 0, b.discount?.amount || 0, discountNote(b.discount),
+        b.amount || 0, b.status || '',
+      ]);
+    });
+    M.push(['', '', '', '', '', '', '', '', '', '', '', '', 'Total', bookingRevenue, '']);
+    blank();
+
+    // ---- Membership sales ----
+    M.push([`MEMBERSHIP SALES (${membershipSales.length})`]);
+    M.push(['Date', 'Time', 'Category', 'Description', 'Amount (Rs.)']);
+    membershipSales.forEach((f) => {
+      M.push([f.date, f.time || '', f.category || 'Membership', f.description || '', f.amount || 0]);
+    });
+    M.push(['', '', '', 'Total', membershipRevenue]);
+    blank();
+
+    // ---- Other income ----
+    M.push([`OTHER INCOME (${otherIncome.length})`]);
+    M.push(['Date', 'Time', 'Category', 'Description', 'Amount (Rs.)']);
+    otherIncome.forEach((f) => {
+      M.push([f.date, f.time || '', f.category || '', f.description || '', f.amount || 0]);
+    });
+    M.push(['', '', '', 'Total', otherIncomeTotal]);
+    blank();
+
+    // ---- Expenses ----
+    M.push([`EXPENSES (${expenses.length})`]);
+    M.push(['Date', 'Time', 'Category', 'Description', 'Allocated To', 'Amount (Rs.)']);
+    expenses.forEach((f) => {
+      M.push([f.date, f.time || '', f.category || '', f.description || '', tableNo(f.table), f.amount || 0]);
+    });
+    M.push(['', '', '', '', 'Total', expensesTotal]);
+
+    const safeLabel = timeframeLabel.toLowerCase().replace(/\s+/g, '-');
+    downloadCsvMatrix(`shots-report-${safeLabel}-${csvDate()}.csv`, M);
   };
 
   return (
@@ -62,13 +180,22 @@ export default function Dashboard() {
         subtitle={`Welcome back. Here's what's happening at Shots today, ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}.`}
         actions={
           <>
-            <button onClick={exportCsv} className="btn-ghost">
+            <div className="relative">
+              <Calendar className="w-4 h-4 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <select
+                value={timeframe}
+                onChange={(e) => setTimeframe(e.target.value)}
+                className="input pl-9 pr-8 py-2 font-semibold cursor-pointer appearance-none"
+                title="Choose the timeframe for the figures and export"
+              >
+                {TIMEFRAMES.map((t) => (
+                  <option key={t.key} value={t.key}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            <button onClick={exportCsv} className="btn-primary" title={`Export a detailed CSV for: ${timeframeLabel}`}>
               <Download className="w-4 h-4" />
               Export
-            </button>
-            <button onClick={() => setNewBookingOpen(true)} className="btn-primary">
-              <Sparkles className="w-4 h-4" />
-              New booking
             </button>
           </>
         }
@@ -78,18 +205,16 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <StatCard
           icon={Coins}
-          label="Today's Revenue"
-          value={rupees(todayRevenue)}
-          sub="Bookings + cash transactions"
-          trend="+12.4%"
+          label={`Revenue · ${timeframeLabel}`}
+          value={rupees(period.totalRevenue)}
+          sub="Bookings + memberships + other income"
           accent="brand"
         />
         <StatCard
           icon={Calendar}
-          label="Bookings Today"
-          value={todayBookings.length}
-          sub={`${todayBookings.filter((b) => b.status === 'Active').length} active now`}
-          trend="+3"
+          label={`Bookings · ${timeframeLabel}`}
+          value={period.periodBookings.length}
+          sub={`${rupees(period.bookingRevenue)} from bookings`}
           accent="blue"
         />
         <StatCard
@@ -154,20 +279,17 @@ export default function Dashboard() {
           <div className="absolute -top-12 -right-12 w-44 h-44 rounded-full bg-white/10 blur-xl" />
           <div className="absolute -bottom-16 -left-10 w-44 h-44 rounded-full bg-black/15 blur-xl" />
           <div className="relative">
-            <div className="text-[11px] uppercase tracking-widest font-bold opacity-80">Month to date</div>
-            <h3 className="text-3xl font-extrabold mt-1">{rupees(mtdNet)}</h3>
-            <p className="text-xs opacity-80">Net profit · {new Date().toLocaleDateString('en-US', { month: 'long' })}</p>
+            <div className="text-[11px] uppercase tracking-widest font-bold opacity-80">{timeframeLabel}</div>
+            <h3 className="text-3xl font-extrabold mt-1">{rupees(period.netProfit)}</h3>
+            <p className="text-xs opacity-80">Net profit</p>
 
             <div className="mt-5 space-y-3">
-              <MTDRow label="Income"   amount={mtdIncome}  Icon={TrendingUp} tone="bg-white/15" />
-              <MTDRow label="Expenses" amount={mtdExpense} Icon={TrendingDown} tone="bg-black/15" />
+              <MTDRow label="Total Revenue" amount={period.totalRevenue} Icon={TrendingUp} tone="bg-white/15" />
+              <MTDRow label="Expenses"      amount={period.expensesTotal} Icon={TrendingDown} tone="bg-black/15" />
               <div className="h-px bg-white/20" />
-              <MTDRow label="Net" amount={mtdNet} Icon={Wallet} tone="bg-white/25" emphasized />
+              <MTDRow label="Net Profit" amount={period.netProfit} Icon={Wallet} tone="bg-white/25" emphasized />
             </div>
 
-            <Link to="/admin/reports" className="mt-6 inline-flex items-center gap-2 text-sm font-bold hover:underline">
-              View full reports <ArrowRight className="w-4 h-4" />
-            </Link>
           </div>
         </div>
       </div>
@@ -277,9 +399,6 @@ export default function Dashboard() {
               <div className="text-[11px] uppercase tracking-widest text-ink-400 font-bold">Activity</div>
               <h3 className="text-lg font-extrabold mt-0.5">Recent transactions</h3>
             </div>
-            <Link to="/admin/finance" className="text-xs font-bold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1">
-              All transactions <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
           </div>
           <ul className="divide-y divide-slate-100">
             {recent.map((tx) => (
@@ -333,7 +452,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <BookingDialog open={newBookingOpen} booking={null} onClose={() => setNewBookingOpen(false)} />
     </>
   );
 }

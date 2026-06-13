@@ -98,6 +98,45 @@ create table if not exists public.tiers (
 create index if not exists tiers_business_idx on public.tiers(business_id);
 
 -- =============================================================================
+-- 3b. TABLE TYPES  (admin-managed list: Pool, Snooker, Foosball, …)
+-- =============================================================================
+create table if not exists public.table_types (
+  id          bigint generated always as identity primary key,
+  business_id text not null references public.businesses(id) on delete cascade,
+  name        text not null,
+  sort_order  int default 0,
+  created_at  timestamptz default now(),
+  unique (business_id, name)
+);
+create index if not exists table_types_business_idx on public.table_types(business_id);
+
+-- =============================================================================
+-- 3c. BOOKING DURATIONS  (admin-managed booking lengths in minutes)
+-- =============================================================================
+create table if not exists public.booking_durations (
+  id          bigint generated always as identity primary key,
+  business_id text not null references public.businesses(id) on delete cascade,
+  minutes     int not null,
+  sort_order  int default 0,
+  created_at  timestamptz default now(),
+  unique (business_id, minutes)
+);
+create index if not exists booking_durations_business_idx on public.booking_durations(business_id);
+
+-- =============================================================================
+-- 3d. EXPENSE CATEGORIES  (admin-managed list for expense logging)
+-- =============================================================================
+create table if not exists public.expense_categories (
+  id          bigint generated always as identity primary key,
+  business_id text not null references public.businesses(id) on delete cascade,
+  name        text not null,
+  sort_order  int default 0,
+  created_at  timestamptz default now(),
+  unique (business_id, name)
+);
+create index if not exists expense_categories_business_idx on public.expense_categories(business_id);
+
+-- =============================================================================
 -- 4. POOL_TABLES  (the snooker/pool tables — Tables page)
 --    Named pool_tables to avoid the SQL keyword "table".
 -- =============================================================================
@@ -116,10 +155,13 @@ create table if not exists public.pool_tables (
   close_time      text default '23:00',
   occupied_until  timestamptz,
   occupied_by     text,
+  image           text,                              -- public URL of the table photo (optional)
   created_at      timestamptz default now(),
   unique (business_id, number)
 );
 create index if not exists pool_tables_business_idx on public.pool_tables(business_id);
+-- Add the image column for projects created before it existed.
+alter table public.pool_tables add column if not exists image text;
 
 -- =============================================================================
 -- 5. MEMBERS  (Memberships / MemberDetail / MemberDialog)
@@ -138,8 +180,9 @@ create table if not exists public.members (
   email       text,
   visits      int default 0,
   total_spent numeric default 0,
-  photo       text,                            -- Storage public URL
-  cnic_image  text,                            -- Storage path / filename
+  photo          text,                         -- Storage public URL
+  cnic_image      text,                         -- ID card FRONT (Storage path)
+  cnic_image_back text,                         -- ID card BACK (Storage path)
   created_at  timestamptz default now()
 );
 create index if not exists members_business_idx on public.members(business_id);
@@ -225,6 +268,9 @@ create table if not exists public.business_settings (
 alter table public.businesses        enable row level security;
 alter table public.profiles          enable row level security;
 alter table public.tiers             enable row level security;
+alter table public.table_types       enable row level security;
+alter table public.booking_durations enable row level security;
+alter table public.expense_categories enable row level security;
 alter table public.pool_tables       enable row level security;
 alter table public.members           enable row level security;
 alter table public.bookings          enable row level security;
@@ -256,7 +302,7 @@ do $$
 declare t text;
 begin
   foreach t in array array[
-    'tiers','pool_tables','members','bookings','transactions','staff','business_settings'
+    'tiers','table_types','booking_durations','expense_categories','pool_tables','members','bookings','transactions','staff','business_settings'
   ]
   loop
     execute format('drop policy if exists "tenant access" on public.%I;', t);
@@ -338,6 +384,15 @@ exception when duplicate_object then null; end $$;
 do $$ begin
   alter publication supabase_realtime add table public.tiers;
 exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.table_types;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.booking_durations;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.expense_categories;
+exception when duplicate_object then null; end $$;
 
 -- =============================================================================
 -- SEED — only the tenant registry (operational data stays empty)
@@ -352,6 +407,26 @@ on conflict (id) do nothing;
 -- An empty settings row for Shots so the Settings page has somewhere to save.
 insert into public.business_settings (business_id) values ('shots')
 on conflict (business_id) do nothing;
+
+-- Default table types for Shots.
+insert into public.table_types (business_id, name, sort_order) values
+  ('shots', 'Pool', 1), ('shots', 'Snooker', 2), ('shots', 'Foosball', 3)
+on conflict (business_id, name) do nothing;
+
+-- Default booking durations for Shots (minutes).
+insert into public.booking_durations (business_id, minutes, sort_order) values
+  ('shots', 15, 1), ('shots', 30, 2), ('shots', 45, 3), ('shots', 60, 4),
+  ('shots', 90, 5), ('shots', 120, 6), ('shots', 180, 7)
+on conflict (business_id, minutes) do nothing;
+
+-- Default expense categories for Shots.
+insert into public.expense_categories (business_id, name, sort_order) values
+  ('shots', 'Repair', 1), ('shots', 'Maintenance', 2), ('shots', 'Supplies', 3),
+  ('shots', 'Cleaning', 4), ('shots', 'Utilities', 5), ('shots', 'Salaries', 6), ('shots', 'Other', 7)
+on conflict (business_id, name) do nothing;
+
+-- ID card back image column (front lives in cnic_image).
+alter table public.members add column if not exists cnic_image_back text;
 
 -- =============================================================================
 -- DONE. Next: create your admin login in

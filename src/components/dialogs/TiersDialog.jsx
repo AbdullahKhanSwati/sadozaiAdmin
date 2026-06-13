@@ -86,7 +86,7 @@ export default function TiersDialog({ open, onClose }) {
                         <div className="font-extrabold">{t.tier}</div>
                         <span className="chip bg-slate-100 text-ink-600">{usedCount} member{usedCount === 1 ? '' : 's'}</span>
                       </div>
-                      <div className="text-xs text-ink-500 mt-0.5">{rupees(t.monthly)} / month · {t.perks?.length || 0} perks</div>
+                      <div className="text-xs text-ink-500 mt-0.5">{rupees(t.monthly)} / year · {t.perks?.length || 0} perks</div>
                       {t.perks?.length > 0 && (
                         <ul className="text-[12px] text-ink-600 mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
                           {t.perks.map((p, i) => (
@@ -146,7 +146,7 @@ function TierEditor({ draft, setDraft, onSave, onCancel }) {
             <input className="input" placeholder="e.g. Platinum" value={draft.tier} onChange={(e) => set('tier', e.target.value)} />
           </div>
           <div>
-            <label className="label">Monthly price (Rs.)</label>
+            <label className="label">Annual price (Rs.)</label>
             <input className="input" type="number" value={draft.monthly} onChange={(e) => set('monthly', e.target.value)} />
           </div>
           <div>
@@ -216,7 +216,7 @@ function TierEditor({ draft, setDraft, onSave, onCancel }) {
               <Icon className="w-5 h-5" />
             </div>
             <div className="font-extrabold">{draft.tier || 'Tier name'}</div>
-            <div className="text-xs text-ink-500">{rupees(draft.monthly)} / month</div>
+            <div className="text-xs text-ink-500">{rupees(draft.monthly)} / year</div>
             <ul className="mt-2 space-y-1 text-[12px] text-ink-700">
               {draft.perks.filter(Boolean).map((p, i) => (
                 <li key={i} className="flex items-start gap-1.5">

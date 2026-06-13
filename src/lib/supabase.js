@@ -18,6 +18,19 @@ export const supabase = createClient(url, anonKey, {
 });
 
 /**
+ * Resolve a viewable URL for a stored image reference.
+ *  - already a full URL (e.g. member-photos public URL) → returned as-is
+ *  - a Storage object path in a private bucket → a temporary signed URL
+ */
+export async function signedUrl(bucket, pathOrUrl, expiresIn = 3600) {
+  if (!pathOrUrl) return null;
+  if (/^https?:\/\//.test(pathOrUrl)) return pathOrUrl;
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(pathOrUrl, expiresIn);
+  if (error) { console.error('signedUrl', error); return null; }
+  return data?.signedUrl || null;
+}
+
+/**
  * Create an app login (auth.users row) for a staff member.
  *
  * We sign the new user up through a SEPARATE, non-persistent Supabase client so

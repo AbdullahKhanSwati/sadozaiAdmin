@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Calendar, Coins, CreditCard, Edit3, Mail, Phone, Trash2, Users,
@@ -6,6 +6,7 @@ import {
 import { rupees } from '../../data/shotsData.js';
 import { EmptyState, StatCard, StatusPill, TierBadge } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
+import { signedUrl } from '../../lib/supabase.js';
 import MembershipVirtualCard from '../../components/MembershipVirtualCard.jsx';
 import MemberDialog from '../../components/dialogs/MemberDialog.jsx';
 
@@ -15,6 +16,20 @@ export default function MemberDetail() {
   const { members, bookings, deleteMember } = useShots();
   const [editOpen, setEditOpen] = useState(false);
   const m = members.find((x) => x.id === id);
+
+  // Resolve viewable URLs for the (private) ID card images.
+  const [cnicUrls, setCnicUrls] = useState({ front: null, back: null });
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const [front, back] = await Promise.all([
+        signedUrl('member-cnic', m?.cnicImage),
+        signedUrl('member-cnic', m?.cnicImageBack),
+      ]);
+      if (active) setCnicUrls({ front, back });
+    })();
+    return () => { active = false; };
+  }, [m?.cnicImage, m?.cnicImageBack]);
 
   if (!m) {
     return (
@@ -46,6 +61,15 @@ export default function MemberDetail() {
         {/* Profile + virtual card */}
         <div className="card p-6 xl:col-span-1">
           <MembershipVirtualCard member={m} />
+
+          {/* ID card images — shown below the membership card */}
+          <div className="mt-5">
+            <div className="text-[11px] uppercase tracking-widest text-ink-400 font-bold mb-2">ID card</div>
+            <div className="grid grid-cols-2 gap-2">
+              <IdCardImage label="Front" src={cnicUrls.front} />
+              <IdCardImage label="Back" src={cnicUrls.back} />
+            </div>
+          </div>
 
           <div className="space-y-3 mt-5">
             <InfoLine icon={Phone} label="Phone" value={m.phone} />
@@ -120,6 +144,24 @@ export default function MemberDetail() {
 
       <MemberDialog open={editOpen} member={m} onClose={() => setEditOpen(false)} />
     </>
+  );
+}
+
+function IdCardImage({ label, src }) {
+  return (
+    <div>
+      <div className="text-[11px] font-semibold text-ink-500 mb-1">{label}</div>
+      {src ? (
+        <a href={src} target="_blank" rel="noopener noreferrer" className="block">
+          <img src={src} alt={`ID card ${label}`} className="w-full h-24 object-cover rounded-xl border border-slate-200 hover:opacity-90 transition" />
+        </a>
+      ) : (
+        <div className="w-full h-24 rounded-xl border border-dashed border-slate-300 bg-slate-50 flex flex-col items-center justify-center text-ink-400">
+          <CreditCard className="w-5 h-5" />
+          <span className="text-[10px] mt-1">No image</span>
+        </div>
+      )}
+    </div>
   );
 }
 

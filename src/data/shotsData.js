@@ -126,6 +126,17 @@ export const bookingDurations = [
   { label: '3 h',    minutes: 180 },
 ];
 
+// Turn a minutes value into a friendly label, e.g. 15 → "15 min", 60 → "1 hr",
+// 90 → "1 hr 30 min". Used wherever booking durations are shown.
+export function minutesToLabel(mins) {
+  const m = Number(mins) || 0;
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  const hourPart = `${h} hr`;
+  return rem ? `${hourPart} ${rem} min` : hourPart;
+}
+
 export const tableTypes  = ['Pool', 'Snooker'];
 export const tableLocations = ['Main Hall', 'Side Hall', 'VIP Section', 'Outdoor'];
 export const tableConditions = ['Excellent', 'Good', 'Fair', 'Poor'];
@@ -190,6 +201,37 @@ export function isMonthToDate(dateStr, refDate = new Date()) {
     d.getMonth() === refDate.getMonth() &&
     d.getDate() <= refDate.getDate()
   );
+}
+
+// Inclusive { start, end } date-key range for a named timeframe, or null for
+// "all time" (no bounds). Drives the Dashboard filter + export.
+export function timeframeRange(key, refDate = new Date()) {
+  const ref = new Date(refDate); ref.setHours(0, 0, 0, 0);
+  switch (key) {
+    case 'today':
+      return { start: dateKey(ref), end: dateKey(ref) };
+    case 'week': {
+      const dow = (ref.getDay() + 6) % 7; // Monday = 0
+      const start = new Date(ref); start.setDate(ref.getDate() - dow);
+      return { start: dateKey(start), end: dateKey(ref) };
+    }
+    case 'mtd': {
+      const start = new Date(ref.getFullYear(), ref.getMonth(), 1);
+      return { start: dateKey(start), end: dateKey(ref) };
+    }
+    case 'lastMonth': {
+      const start = new Date(ref.getFullYear(), ref.getMonth() - 1, 1);
+      const end = new Date(ref.getFullYear(), ref.getMonth(), 0); // last day of prev month
+      return { start: dateKey(start), end: dateKey(end) };
+    }
+    case 'year': {
+      const start = new Date(ref.getFullYear(), 0, 1);
+      return { start: dateKey(start), end: dateKey(ref) };
+    }
+    case 'all':
+    default:
+      return null;
+  }
 }
 
 // Aggregations — all take a `finance` array so they work with the live store

@@ -1,44 +1,44 @@
 import { useMemo, useState } from 'react';
 import {
-  Calendar, Clock, Edit3, Grid3X3, MapPin, Plus, Search, Sparkles, Wrench,
+  Calendar, Edit3, Grid3X3, Plus, Search, Sparkles, Tags, Wrench,
 } from 'lucide-react';
-import { rupees, relativeFromNow } from '../../data/shotsData.js';
+import { rupees } from '../../data/shotsData.js';
 import { FilterChips, PageHeader, StatCard, StatusPill, EmptyState } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
 import TableDialog from '../../components/dialogs/TableDialog.jsx';
+import TableTypesDialog from '../../components/dialogs/TableTypesDialog.jsx';
 import BookingDialog from '../../components/dialogs/BookingDialog.jsx';
 
 const STATUS_FILTERS = (list) => [
   { value: 'All',         label: 'All',         count: list.length },
   { value: 'Available',   label: 'Available',   count: list.filter((t) => t.status === 'Available').length },
-  { value: 'Occupied',    label: 'Occupied',    count: list.filter((t) => t.status === 'Occupied').length },
   { value: 'Maintenance', label: 'Maintenance', count: list.filter((t) => t.status === 'Maintenance').length },
-];
-const TYPE_FILTERS = [
-  { value: 'All',     label: 'All types' },
-  { value: 'Pool',    label: 'Pool' },
-  { value: 'Snooker', label: 'Snooker' },
 ];
 
 export default function Tables() {
-  const { tables } = useShots();
+  const { tables, tableTypes } = useShots();
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('All');
   const [type, setType] = useState('All');
   const [tableDialog, setTableDialog] = useState({ open: false, table: null });
   const [bookingDialog, setBookingDialog] = useState({ open: false, table: null });
+  const [typesOpen, setTypesOpen] = useState(false);
+
+  const typeFilters = useMemo(
+    () => [{ value: 'All', label: 'All types' }, ...tableTypes.map((t) => ({ value: t.name, label: t.name }))],
+    [tableTypes]
+  );
 
   const list = useMemo(() => {
     return tables.filter((t) => {
       const q = query.trim().toLowerCase();
-      const matchQ = !q || String(t.number).includes(q) || t.type.toLowerCase().includes(q) || t.location.toLowerCase().includes(q);
+      const matchQ = !q || String(t.number).includes(q) || (t.type || '').toLowerCase().includes(q);
       const matchS = status === 'All' || t.status === status;
       const matchT = type === 'All' || t.type === type;
       return matchQ && matchS && matchT;
     });
   }, [tables, query, status, type]);
 
-  const occupied = tables.filter((t) => t.status === 'Occupied').length;
   const available = tables.filter((t) => t.status === 'Available').length;
   const maintenance = tables.filter((t) => t.status === 'Maintenance').length;
 
@@ -46,9 +46,12 @@ export default function Tables() {
     <>
       <PageHeader
         title="Tables management"
-        subtitle="Add, edit, and monitor every snooker & pool table across all halls."
+        subtitle="Add, edit, and monitor every table across all halls."
         actions={
           <>
+            <button onClick={() => setTypesOpen(true)} className="btn-ghost">
+              <Tags className="w-4 h-4" /> Manage types
+            </button>
             <button onClick={() => setBookingDialog({ open: true, table: null })} className="btn-ghost">
               <Calendar className="w-4 h-4" /> New booking
             </button>
@@ -59,10 +62,9 @@ export default function Tables() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard icon={Grid3X3}  label="Total tables" value={tables.length} sub="Across all halls" accent="brand" />
         <StatCard icon={Sparkles} label="Available"    value={available}     sub="Ready to book"    accent="emerald" />
-        <StatCard icon={Clock}    label="Occupied"     value={occupied}      sub="Active sessions"  accent="amber" />
         <StatCard icon={Wrench}   label="Maintenance"  value={maintenance}   sub="Pending repair"   accent="rose" />
       </div>
 
@@ -71,7 +73,7 @@ export default function Tables() {
           <div className="relative flex-1 max-w-md">
             <Search className="w-4 h-4 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
-              placeholder="Search by table #, type, location…"
+              placeholder="Search by table # or type…"
               className="input pl-9"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -79,7 +81,7 @@ export default function Tables() {
           </div>
           <FilterChips value={status} onChange={setStatus} items={STATUS_FILTERS(tables)} />
           <div className="lg:ml-auto">
-            <FilterChips value={type} onChange={setType} items={TYPE_FILTERS} />
+            <FilterChips value={type} onChange={setType} items={typeFilters} />
           </div>
         </div>
       </div>
@@ -111,6 +113,7 @@ export default function Tables() {
         table={tableDialog.table}
         onClose={() => setTableDialog({ open: false, table: null })}
       />
+      <TableTypesDialog open={typesOpen} onClose={() => setTypesOpen(false)} />
       <BookingDialog
         open={bookingDialog.open}
         booking={null}
@@ -122,58 +125,50 @@ export default function Tables() {
 }
 
 function TableCard({ t, onEdit, onBook }) {
-  const freeIn = relativeFromNow(t.occupiedUntil);
   return (
-    <div className="card card-hover p-5 relative overflow-hidden">
-      <div className="absolute top-0 right-0 h-1 w-full bg-gradient-to-r from-transparent via-brand-200 to-transparent opacity-40" />
-      <div className="flex items-start gap-3">
-        <div className="w-14 h-14 rounded-2xl bg-ink-900 text-white flex flex-col items-center justify-center shadow-pop">
-          <div className="text-[9px] uppercase tracking-widest opacity-70">Table</div>
-          <div className="text-xl font-extrabold leading-none">{t.number}</div>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h4 className="font-extrabold text-lg">{t.type}</h4>
-            <span className="chip bg-slate-100 text-ink-600">{t.condition}</span>
+    <div className="card card-hover p-0 relative overflow-hidden">
+      {/* Photo / placeholder header */}
+      <div className="relative h-32 bg-ink-900">
+        {t.image ? (
+          <img src={t.image} alt={`Table ${t.number}`} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-ink-800 to-ink-900">
+            <Grid3X3 className="w-10 h-10 text-white/15" />
           </div>
-          <div className="flex items-center gap-1 text-xs text-ink-500 mt-1">
-            <MapPin className="w-3.5 h-3.5" />
-            {t.location}
-          </div>
+        )}
+        <div className="absolute top-3 left-3 inline-flex items-center justify-center px-3 py-1.5 rounded-xl bg-black/55 text-white font-extrabold text-sm">
+          Table {t.number}
         </div>
-        <StatusPill value={t.status} />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 mt-4">
-        <div className="rounded-xl bg-slate-50 p-3">
-          <div className="text-[10px] uppercase tracking-widest text-ink-400 font-bold">Member rate</div>
-          <div className="font-extrabold text-ink-800 mt-0.5">{rupees(t.memberRate)} <span className="text-xs text-ink-500 font-medium">/ hr</span></div>
-        </div>
-        <div className="rounded-xl bg-slate-50 p-3">
-          <div className="text-[10px] uppercase tracking-widest text-ink-400 font-bold">Non-member</div>
-          <div className="font-extrabold text-ink-800 mt-0.5">{rupees(t.nonMemberRate)} <span className="text-xs text-ink-500 font-medium">/ hr</span></div>
-        </div>
-        <div className="rounded-xl bg-slate-50 p-3 col-span-2">
-          <div className="text-[10px] uppercase tracking-widest text-ink-400 font-bold">Hours</div>
-          <div className="text-sm text-ink-700 mt-0.5 font-semibold">{t.openTime} – {t.closeTime}</div>
+        <div className="absolute top-3 right-3">
+          <StatusPill value={t.status} />
         </div>
       </div>
 
-      {t.status === 'Occupied' && (
-        <div className="mt-3 rounded-xl bg-amber-50 border border-amber-100 px-3 py-2 text-xs">
-          <div className="font-bold text-amber-700 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {t.occupiedBy}</div>
-          <div className="text-amber-700/80">Free in <span className="font-bold">{freeIn || '—'}</span></div>
-        </div>
-      )}
-      {t.status === 'Maintenance' && (
-        <div className="mt-3 rounded-xl bg-rose-50 border border-rose-100 px-3 py-2 text-xs text-rose-700 flex items-center gap-2">
-          <Wrench className="w-3.5 h-3.5" /> Out of service · last cleaned {t.lastCleaned}
-        </div>
-      )}
+      <div className="p-5">
+        <h4 className="font-extrabold text-lg">{t.type}</h4>
 
-      <div className="flex items-center justify-between mt-4">
-        <div className="text-[11px] text-ink-400">Last cleaned · {t.lastCleaned}</div>
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <div className="rounded-xl bg-slate-50 p-3">
+            <div className="text-[10px] uppercase tracking-widest text-ink-400 font-bold">Member rate</div>
+            <div className="font-extrabold text-ink-800 mt-0.5">{rupees(t.memberRate)} <span className="text-xs text-ink-500 font-medium">/ hr</span></div>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-3">
+            <div className="text-[10px] uppercase tracking-widest text-ink-400 font-bold">Non-member</div>
+            <div className="font-extrabold text-ink-800 mt-0.5">{rupees(t.nonMemberRate)} <span className="text-xs text-ink-500 font-medium">/ hr</span></div>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-3 col-span-2">
+            <div className="text-[10px] uppercase tracking-widest text-ink-400 font-bold">Hours</div>
+            <div className="text-sm text-ink-700 mt-0.5 font-semibold">{t.openTime} – {t.closeTime}</div>
+          </div>
+        </div>
+
+        {t.status === 'Maintenance' && (
+          <div className="mt-3 rounded-xl bg-rose-50 border border-rose-100 px-3 py-2 text-xs text-rose-700 flex items-center gap-2">
+            <Wrench className="w-3.5 h-3.5" /> Out of service
+          </div>
+        )}
+
+        <div className="flex items-center justify-end gap-2 mt-4">
           <button onClick={onEdit} className="btn-ghost px-2.5 py-1.5 text-xs">
             <Edit3 className="w-3.5 h-3.5" /> Edit
           </button>

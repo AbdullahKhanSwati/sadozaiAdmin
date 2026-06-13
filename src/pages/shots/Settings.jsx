@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Bell, Building2, Check, Clock, CreditCard, DollarSign, Globe, Lock, Mail, Save, ShieldCheck, User,
+  Building2, Check, DollarSign, Mail, Plus, Save, ShieldCheck, Timer, Trash2, User,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { useShots } from '../../store/ShotsStore.jsx';
+import { minutesToLabel } from '../../data/shotsData.js';
 import { supabase } from '../../lib/supabase.js';
 
 const DEFAULTS = {
@@ -106,11 +108,8 @@ export default function Settings() {
   const sections = [
     { id: 'business',     label: 'Business profile', icon: Building2 },
     { id: 'rates',        label: 'Pricing & rates',  icon: DollarSign },
-    { id: 'hours',        label: 'Opening hours',    icon: Clock },
-    { id: 'notifications',label: 'Notifications',    icon: Bell },
+    { id: 'durations',    label: 'Booking durations', icon: Timer },
     { id: 'security',     label: 'Security',         icon: ShieldCheck },
-    { id: 'billing',      label: 'Billing',          icon: CreditCard },
-    { id: 'locale',       label: 'Locale',           icon: Globe },
     { id: 'account',      label: 'Account',          icon: User },
   ];
 
@@ -166,24 +165,7 @@ export default function Settings() {
             </SectionCard>
           )}
 
-          {section === 'hours' && (
-            <SectionCard title="Opening hours" description="Default booking window per table.">
-              <Grid2>
-                <Field label="Open" type="time" value={form.hours.open} onChange={(e) => setSec('hours', 'open', e.target.value)} />
-                <Field label="Close" type="time" value={form.hours.close} onChange={(e) => setSec('hours', 'close', e.target.value)} />
-                <Field label="Booking interval (minutes)" type="number" value={form.hours.interval} onChange={(e) => setSec('hours', 'interval', e.target.value)} />
-              </Grid2>
-            </SectionCard>
-          )}
-
-          {section === 'notifications' && (
-            <SectionCard title="Notifications" description="Choose what to be notified about.">
-              <ToggleRow label="New booking" hint="When a member or guest reserves a table." checked={form.notifications.newBooking} onChange={(v) => setSec('notifications', 'newBooking', v)} />
-              <ToggleRow label="Expiring memberships" hint="One week before expiry." checked={form.notifications.expiringMemberships} onChange={(v) => setSec('notifications', 'expiringMemberships', v)} />
-              <ToggleRow label="Big expenses" hint="Any expense above Rs. 5,000." checked={form.notifications.bigExpenses} onChange={(v) => setSec('notifications', 'bigExpenses', v)} />
-              <ToggleRow label="Daily summary email" hint="Sent at midnight." checked={form.notifications.dailySummary} onChange={(v) => setSec('notifications', 'dailySummary', v)} />
-            </SectionCard>
-          )}
+          {section === 'durations' && <DurationsSection />}
 
           {section === 'security' && (
             <SectionCard title="Security" description="Keep your admin account safe.">
@@ -192,53 +174,6 @@ export default function Settings() {
                 <div className="hidden sm:block" />
                 <Field label="New password" type="password" placeholder="At least 8 characters" value={pwd.next} onChange={(e) => setPwd((s) => ({ ...s, next: e.target.value }))} />
                 <Field label="Confirm new password" type="password" value={pwd.confirm} onChange={(e) => setPwd((s) => ({ ...s, confirm: e.target.value }))} />
-              </Grid2>
-              <ToggleRow label="Two-factor authentication" hint="Receive a code by SMS or email." checked={form.security.twoFactor} onChange={(v) => setSec('security', 'twoFactor', v)} />
-              <ToggleRow label="Session auto-logout" hint="Sign out after 30 minutes of inactivity." checked={form.security.autoLogout} onChange={(v) => setSec('security', 'autoLogout', v)} />
-            </SectionCard>
-          )}
-
-          {section === 'billing' && (
-            <SectionCard title="Billing" description="Subscription & invoices.">
-              <div className="rounded-2xl border border-slate-200 p-4 flex items-center gap-3">
-                <CreditCard className="w-5 h-5 text-ink-500" />
-                <div className="flex-1">
-                  <div className="font-bold">Visa ending 4242</div>
-                  <div className="text-xs text-ink-500">Expires 09/28</div>
-                </div>
-                <button className="btn-ghost text-xs">Replace</button>
-              </div>
-              <p className="text-xs text-ink-500 mt-3">Next invoice on 1 June 2026 · Rs. 12,000</p>
-            </SectionCard>
-          )}
-
-          {section === 'locale' && (
-            <SectionCard title="Locale" description="Currency & formatting.">
-              <Grid2>
-                <div>
-                  <label className="label">Currency</label>
-                  <select className="input" value={form.locale.currency} onChange={(e) => setSec('locale', 'currency', e.target.value)}>
-                    <option>PKR — Pakistani Rupee</option><option>USD</option><option>AED</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Timezone</label>
-                  <select className="input" value={form.locale.timezone} onChange={(e) => setSec('locale', 'timezone', e.target.value)}>
-                    <option>Asia/Karachi (UTC+5)</option><option>UTC</option><option>Asia/Dubai (UTC+4)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Date format</label>
-                  <select className="input" value={form.locale.dateFormat} onChange={(e) => setSec('locale', 'dateFormat', e.target.value)}>
-                    <option>DD MMM YYYY</option><option>MM/DD/YYYY</option><option>YYYY-MM-DD</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">First day of week</label>
-                  <select className="input" value={form.locale.firstDay} onChange={(e) => setSec('locale', 'firstDay', e.target.value)}>
-                    <option>Monday</option><option>Sunday</option>
-                  </select>
-                </div>
               </Grid2>
             </SectionCard>
           )}
@@ -298,29 +233,70 @@ function Field({ label, className, icon, ...rest }) {
   );
 }
 
-function ToggleRow({ label, hint, checked, onChange }) {
-  const on = !!checked;
+function DurationsSection() {
+  const { bookingDurations, addBookingDuration, deleteBookingDuration } = useShots();
+  const [mins, setMins] = useState('');
+  const [err, setErr] = useState('');
+
+  const add = async () => {
+    setErr('');
+    const m = Number(mins);
+    if (!m || m <= 0) return setErr('Enter a number of minutes greater than 0.');
+    if (bookingDurations.some((d) => d.minutes === m)) return setErr(`${m} minutes already exists.`);
+    try { await addBookingDuration(m); setMins(''); }
+    catch (e) { setErr(e?.message || 'Could not add duration.'); }
+  };
+
   return (
-    <div className="flex items-center justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
-      <div className="min-w-0">
-        <div className="font-semibold text-sm">{label}</div>
-        {hint && <div className="text-xs text-ink-500">{hint}</div>}
+    <SectionCard title="Booking durations" description="The duration options shown when booking a table (admin & staff). Changes apply instantly.">
+      <div className="space-y-2">
+        {bookingDurations.length === 0 && (
+          <p className="text-sm text-ink-500">No durations yet. Add your first one below.</p>
+        )}
+        {bookingDurations.map((d) => (
+          <DurationRow key={d.id} d={d} onDelete={() => deleteBookingDuration(d.id)} />
+        ))}
       </div>
-      <button
-        type="button"
-        onClick={() => onChange(!on)}
-        className={[
-          'relative w-11 h-6 rounded-full transition shrink-0',
-          on ? 'bg-brand-gradient' : 'bg-slate-200',
-        ].join(' ')}
-      >
-        <span
-          className={[
-            'absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-soft transition',
-            on ? 'left-[22px]' : 'left-0.5',
-          ].join(' ')}
+
+      <div className="flex gap-2 mt-3">
+        <input
+          className="input flex-1"
+          type="number"
+          placeholder="Minutes (e.g. 60)"
+          value={mins}
+          onChange={(e) => setMins(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && add()}
         />
-      </button>
+        <button onClick={add} className="btn-primary"><Plus className="w-4 h-4" /> Add duration</button>
+      </div>
+      {err && <div className="mt-2 text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">{err}</div>}
+    </SectionCard>
+  );
+}
+
+function DurationRow({ d, onDelete }) {
+  const { updateBookingDuration } = useShots();
+  const [val, setVal] = useState(String(d.minutes));
+  const changed = Number(val) !== d.minutes && Number(val) > 0;
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-slate-200 p-2.5">
+      <Timer className="w-4 h-4 text-ink-400 shrink-0" />
+      <input
+        className="input w-24"
+        type="number"
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+      />
+      <span className="text-sm font-semibold text-ink-600">min · shows as “{minutesToLabel(Number(val) || 0)}”</span>
+      <div className="ml-auto flex gap-2">
+        {changed && (
+          <button onClick={() => updateBookingDuration(d.id, Number(val))} className="btn-primary px-2.5 py-1.5 text-xs">
+            <Check className="w-3.5 h-3.5" /> Save
+          </button>
+        )}
+        <button onClick={onDelete} className="btn-danger px-2.5 py-1.5 text-xs"><Trash2 className="w-3.5 h-3.5" /></button>
+      </div>
     </div>
   );
 }
+
