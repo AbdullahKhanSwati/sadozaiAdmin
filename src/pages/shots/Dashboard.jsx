@@ -9,41 +9,32 @@ import {
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import {
-  dailyRevenueSeries, categoryBreakdown, rupees, dateKey, timeframeRange,
+  rupees, dateKey, inRangePred, rangeLabel, defaultRange,
+  revenueSeries, incomeMix, recentActivity, memberBookingAgg,
 } from '../../data/shotsData.js';
-import { PageHeader, StatCard, StatusPill, TierBadge } from '../../components/ui.jsx';
+import { DateRange, PageHeader, StatCard, StatusPill, TierBadge } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
 import { downloadCsvMatrix, csvDate } from '../../lib/csv.js';
 
 const PIE_COLORS = ['#E53E3E', '#F4B860', '#3B82F6', '#10B981', '#A855F7', '#FF6B6B', '#64748B'];
 
-const TIMEFRAMES = [
-  { key: 'today', label: 'Today' },
-  { key: 'week', label: 'This Week' },
-  { key: 'mtd', label: 'This Month' },
-  { key: 'lastMonth', label: 'Last Month' },
-  { key: 'year', label: 'This Year' },
-  { key: 'all', label: 'All Time' },
-];
-
 export default function Dashboard() {
   const { tables, members, bookings, finance } = useShots();
-  const [timeframe, setTimeframe] = useState('mtd');
+  const [{ from, to }, setRange] = useState(() => defaultRange());
   const today = dateKey(new Date());
 
-  const timeframeLabel = TIMEFRAMES.find((t) => t.key === timeframe)?.label || 'This Month';
+  const timeframeLabel = rangeLabel(from, to);
 
   // Period-scoped data + totals — drives both the on-screen figures and the export.
   const period = useMemo(() => {
-    const range = timeframeRange(timeframe, new Date());
-    const inRange = (d) => !range || (d >= range.start && d <= range.end);
+    const inRange = inRangePred(from, to);
 
     const periodBookings = bookings
       .filter((b) => b.status !== 'Cancelled' && inRange(b.date))
-      .sort((a, b) => (a.date === b.date ? (a.start || '').localeCompare(b.start || '') : a.date < b.date ? -1 : 1));
+      .sort((a, b) => (a.date === b.date ? (b.start || '').localeCompare(a.start || '') : a.date < b.date ? 1 : -1));
     const periodFinance = finance
       .filter((f) => inRange(f.date))
-      .sort((a, b) => (a.date === b.date ? (a.time || '').localeCompare(b.time || '') : a.date < b.date ? -1 : 1));
+      .sort((a, b) => (a.date === b.date ? (b.time || '').localeCompare(a.time || '') : a.date < b.date ? 1 : -1));
 
     const bookingRevenue    = periodBookings.reduce((s, b) => s + (b.amount || 0), 0);
     const membershipSales   = periodFinance.filter((f) => f.type === 'In' && f.category === 'Membership');
@@ -55,14 +46,17 @@ export default function Dashboard() {
     const totalRevenue      = bookingRevenue + membershipRevenue + otherIncomeTotal;
 
     return {
-      range, periodBookings, membershipSales, otherIncome, expenses,
+      range: from || to ? { start: from, end: to } : null,
+      periodBookings, membershipSales, otherIncome, expenses,
       bookingRevenue, membershipRevenue, otherIncomeTotal, expensesTotal,
       totalRevenue, netProfit: totalRevenue - expensesTotal,
     };
-  }, [timeframe, bookings, finance]);
+  }, [from, to, bookings, finance]);
 
   // The "Today's bookings" widget is always today, independent of the filter.
-  const todayBookings = bookings.filter((b) => b.date === today);
+  const todayBookings = bookings
+    .filter((b) => b.date === today)
+    .sort((a, b) => (b.start || '').localeCompare(a.start || ''));
 
   const activeMembers = members.filter((m) => m.status === 'Active').length;
   const expiredMembers = members.filter((m) => m.status === 'Expired').length;
@@ -70,10 +64,24 @@ export default function Dashboard() {
   const occupied = tables.filter((t) => t.status === 'Occupied').length;
   const available = tables.filter((t) => t.status === 'Available').length;
 
-  const series = useMemo(() => dailyRevenueSeries(finance, 14), [finance]);
-  const incomeBreakdown = useMemo(() => categoryBreakdown(finance, 'In'), [finance]);
+  // Booking-aware + range-scoped: cash-flow chart, income mix, recent feed.
+  const series = useMemo(() => revenueSeries(finance, bookings, from, to), [finance, bookings, from, to]);
+  const incomeBreakdown = useMemo(() => incomeMix(finance, bookings, from, to), [finance, bookings, from, to]);
+  const recent = useMemo(() => recentActivity(finance, bookings, 6, from, to), [finance, bookings, from, to]);
 
-  const recent = [...finance].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 6);
+  // Top members ranked by lifetime value = membership spend + booking spend,
+  // with visits derived from real bookings.
+  const bookingAgg = useMemo(() => memberBookingAgg(bookings), [bookings]);
+  const topMembers = useMemo(() => (
+    [...members]
+      .map((m) => ({
+        ...m,
+        liveVisits: bookingAgg.get(m.id)?.visits || 0,
+        lifetimeValue: (m.totalSpent || 0) + (bookingAgg.get(m.id)?.bookingSpend || 0),
+      }))
+      .sort((a, b) => b.lifetimeValue - a.lifetimeValue)
+      .slice(0, 5)
+  ), [members, bookingAgg]);
 
   // Detailed, multi-section CSV report for the selected timeframe.
   const exportCsv = () => {
@@ -169,30 +177,23 @@ export default function Dashboard() {
     });
     M.push(['', '', '', '', 'Total', expensesTotal]);
 
-    const safeLabel = timeframeLabel.toLowerCase().replace(/\s+/g, '-');
-    downloadCsvMatrix(`shots-report-${safeLabel}-${csvDate()}.csv`, M);
+    downloadCsvMatrix(`shots-report-${csvDate()}.csv`, M);
   };
 
   return (
     <>
       <PageHeader
-        title="Dashboard overview"
+        title="Dashboard Overview"
         subtitle={`Welcome back. Here's what's happening at Shots today, ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}.`}
         actions={
           <>
-            <div className="relative">
-              <Calendar className="w-4 h-4 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <select
-                value={timeframe}
-                onChange={(e) => setTimeframe(e.target.value)}
-                className="input pl-9 pr-8 py-2 font-semibold cursor-pointer appearance-none"
-                title="Choose the timeframe for the figures and export"
-              >
-                {TIMEFRAMES.map((t) => (
-                  <option key={t.key} value={t.key}>{t.label}</option>
-                ))}
-              </select>
-            </div>
+            <DateRange
+              from={from}
+              to={to}
+              onFrom={(v) => setRange((r) => ({ ...r, from: v }))}
+              onTo={(v) => setRange((r) => ({ ...r, to: v }))}
+              onClear={() => setRange({ from: '', to: '' })}
+            />
             <button onClick={exportCsv} className="btn-primary" title={`Export a detailed CSV for: ${timeframeLabel}`}>
               <Download className="w-4 h-4" />
               Export
@@ -239,7 +240,7 @@ export default function Dashboard() {
         <div className="card p-5 xl:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <div className="text-[11px] uppercase tracking-widest text-ink-400 font-bold">Cash flow · 14 days</div>
+              <div className="text-[11px] uppercase tracking-widest text-ink-400 font-bold">Cash Flow · {timeframeLabel}</div>
               <h3 className="text-lg font-extrabold mt-0.5">Revenue vs Expense</h3>
             </div>
             <div className="flex items-center gap-3 text-xs">
@@ -301,7 +302,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <div className="text-[11px] uppercase tracking-widest text-ink-400 font-bold">Schedule</div>
-              <h3 className="text-lg font-extrabold mt-0.5">Today's bookings</h3>
+              <h3 className="text-lg font-extrabold mt-0.5">Today's Bookings</h3>
             </div>
             <Link to="/admin/bookings" className="text-xs font-bold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1">
               View all <ArrowRight className="w-3.5 h-3.5" />
@@ -354,8 +355,8 @@ export default function Dashboard() {
         {/* Income breakdown pie */}
         <div className="card p-5">
           <div className="mb-2">
-            <div className="text-[11px] uppercase tracking-widest text-ink-400 font-bold">Revenue mix</div>
-            <h3 className="text-lg font-extrabold mt-0.5">Income by category</h3>
+            <div className="text-[11px] uppercase tracking-widest text-ink-400 font-bold">Revenue Mix · {timeframeLabel}</div>
+            <h3 className="text-lg font-extrabold mt-0.5">Income by Category</h3>
           </div>
           <div className="h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -397,53 +398,57 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <div className="text-[11px] uppercase tracking-widest text-ink-400 font-bold">Activity</div>
-              <h3 className="text-lg font-extrabold mt-0.5">Recent transactions</h3>
+              <h3 className="text-lg font-extrabold mt-0.5">Recent Transactions</h3>
             </div>
           </div>
-          <ul className="divide-y divide-slate-100">
-            {recent.map((tx) => (
-              <li key={tx.id} className="flex items-center gap-3 py-3">
-                <div className={[
-                  'w-10 h-10 rounded-xl flex items-center justify-center',
-                  tx.type === 'In' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600',
-                ].join(' ')}>
-                  {tx.type === 'In' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm truncate">{tx.category}</div>
-                  <div className="text-[12px] text-ink-500 truncate">{tx.description}</div>
-                </div>
-                <div className="text-right">
-                  <div className={['text-sm font-extrabold', tx.type === 'In' ? 'text-emerald-600' : 'text-rose-600'].join(' ')}>
-                    {tx.type === 'In' ? '+' : '−'} {rupees(tx.amount)}
+          {recent.length === 0 ? (
+            <div className="text-center text-sm text-ink-500 py-8">No transactions in this period.</div>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {recent.map((tx) => (
+                <li key={tx.id} className="flex items-center gap-3 py-3">
+                  <div className={[
+                    'w-10 h-10 rounded-xl flex items-center justify-center',
+                    tx.kind === 'In' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600',
+                  ].join(' ')}>
+                    {tx.kind === 'In' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
                   </div>
-                  <div className="text-[11px] text-ink-400">{new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {tx.time}</div>
-                </div>
-              </li>
-            ))}
-          </ul>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm truncate">{tx.category}</div>
+                    <div className="text-[12px] text-ink-500 truncate">{tx.description}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className={['text-sm font-extrabold', tx.kind === 'In' ? 'text-emerald-600' : 'text-rose-600'].join(' ')}>
+                      {tx.kind === 'In' ? '+' : '−'} {rupees(tx.amount)}
+                    </div>
+                    <div className="text-[11px] text-ink-400">{new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {tx.time}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="card p-5">
           <div className="flex items-center justify-between mb-3">
             <div>
               <div className="text-[11px] uppercase tracking-widest text-ink-400 font-bold">People</div>
-              <h3 className="text-lg font-extrabold mt-0.5">Top members</h3>
+              <h3 className="text-lg font-extrabold mt-0.5">Top Members</h3>
             </div>
             <Link to="/admin/memberships" className="text-xs font-bold text-brand-600 hover:text-brand-700">View all</Link>
           </div>
           <ul className="space-y-2">
-            {[...members].sort((a, b) => b.totalSpent - a.totalSpent).slice(0, 5).map((m, i) => (
+            {topMembers.map((m, i) => (
               <li key={m.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50">
                 <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center font-bold text-ink-700">
                   {i + 1}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-sm truncate">{m.name}</div>
-                  <div className="text-[11px] text-ink-400">{m.visits} visits</div>
+                  <div className="text-[11px] text-ink-400">{m.liveVisits} visits</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-bold">{rupees(m.totalSpent)}</div>
+                  <div className="text-sm font-bold">{rupees(m.lifetimeValue)}</div>
                   <TierBadge tier={m.type} />
                 </div>
               </li>

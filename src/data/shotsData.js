@@ -287,6 +287,134 @@ export function categoryBreakdown(finance, type = 'In') {
   return Array.from(map.entries()).map(([category, amount]) => ({ category, amount }));
 }
 
+// Custom from/to date-range helpers ========================================
+
+// Predicate: is a 'YYYY-MM-DD' date string within [from, to]? Empty bound = open.
+export function inRangePred(from, to) {
+  return (d) => (!from || d >= from) && (!to || d <= to);
+}
+
+// Human label for a from/to range, used on KPI cards + export filenames.
+export function rangeLabel(from, to) {
+  if (!from && !to) return 'All time';
+  const f = from ? formatDate(from) : '…';
+  const t = to ? formatDate(to) : '…';
+  return `${f} → ${t}`;
+}
+
+// Default range = current month-to-date.
+export function defaultRange(ref = new Date()) {
+  const start = new Date(ref.getFullYear(), ref.getMonth(), 1);
+  return { from: dateKey(start), to: dateKey(ref) };
+}
+
+// Per-member aggregation from live bookings — fixes "visits" and adds booking
+// spend on top of membership spend for "lifetime value".
+//  - visits: counts every booking the member took part in (primary + co-players)
+//  - bookingSpend: booking amount attributed to the primary member only, so
+//    shared bookings are not double-counted across players.
+export function memberBookingAgg(bookings = []) {
+  const map = new Map();
+  const ensure = (id) => {
+    if (!map.has(id)) map.set(id, { visits: 0, bookingSpend: 0 });
+    return map.get(id);
+  };
+  bookings.forEach((b) => {
+    if (b.status === 'Cancelled') return;
+    const players = new Set();
+    if (b.memberId) players.add(b.memberId);
+    (b.members || []).forEach((mm) => mm?.id && players.add(mm.id));
+    players.forEach((id) => { ensure(id).visits += 1; });
+    const primary = b.memberId || (b.members && b.members[0]?.id);
+    if (primary) ensure(primary).bookingSpend += b.amount || 0;
+  });
+  return map;
+}
+
+// Revenue-vs-expense series across a custom range, INCLUDING booking revenue in
+// income. Buckets by day for short ranges (≤62 days) or by month for longer ones.
+export function revenueSeries(finance = [], bookings = [], from, to) {
+  const allDates = [...finance.map((f) => f.date), ...bookings.map((b) => b.date)].filter(Boolean).sort();
+  const start = from || allDates[0];
+  const end = to || allDates[allDates.length - 1] || dateKey(new Date());
+  if (!start) return [];
+  const sd = new Date(start); sd.setHours(0, 0, 0, 0);
+  const ed = new Date(end);   ed.setHours(0, 0, 0, 0);
+  const spanDays = Math.floor((ed - sd) / 86400000) + 1;
+  const live = bookings.filter((b) => b.status !== 'Cancelled');
+
+  const sumFin = (pred) => {
+    let income = 0, expense = 0;
+    finance.forEach((f) => {
+      if (!pred(f.date)) return;
+      if (f.type === 'In') income += f.amount || 0;
+      else if (f.type === 'Out') expense += f.amount || 0;
+    });
+    return { income, expense };
+  };
+  const sumBk = (pred) => live.reduce((s, b) => (pred(b.date) ? s + (b.amount || 0) : s), 0);
+
+  const out = [];
+  if (spanDays <= 62) {
+    for (let i = 0; i < spanDays; i++) {
+      const d = new Date(sd); d.setDate(sd.getDate() + i);
+      const key = dateKey(d);
+      const { income, expense } = sumFin((x) => x === key);
+      const bk = sumBk((x) => x === key);
+      out.push({ date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), income: income + bk, expense, net: income + bk - expense });
+    }
+  } else {
+    let cur = new Date(sd.getFullYear(), sd.getMonth(), 1);
+    const last = new Date(ed.getFullYear(), ed.getMonth(), 1);
+    while (cur <= last) {
+      const y = cur.getFullYear(), mo = cur.getMonth();
+      const inMonth = (x) => {
+        const dd = new Date(x);
+        return dd.getFullYear() === y && dd.getMonth() === mo && x >= start && x <= end;
+      };
+      const { income, expense } = sumFin(inMonth);
+      const bk = sumBk(inMonth);
+      out.push({ date: cur.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }), income: income + bk, expense, net: income + bk - expense });
+      cur = new Date(y, mo + 1, 1);
+    }
+  }
+  return out;
+}
+
+// Income-by-category for the pie chart, including a "Bookings" slice, scoped to
+// a custom range.
+export function incomeMix(finance = [], bookings = [], from, to) {
+  const inR = inRangePred(from, to);
+  const map = new Map();
+  finance.forEach((f) => {
+    if (f.type === 'In' && inR(f.date)) map.set(f.category, (map.get(f.category) || 0) + (f.amount || 0));
+  });
+  const bookingTotal = bookings
+    .filter((b) => b.status !== 'Cancelled' && inR(b.date))
+    .reduce((s, b) => s + (b.amount || 0), 0);
+  if (bookingTotal > 0) map.set('Bookings', (map.get('Bookings') || 0) + bookingTotal);
+  return Array.from(map.entries())
+    .map(([category, amount]) => ({ category, amount }))
+    .sort((a, b) => b.amount - a.amount);
+}
+
+// Merged, newest-first activity feed (finance entries + bookings as income),
+// scoped to a custom range.
+export function recentActivity(finance = [], bookings = [], n = 6, from, to) {
+  const inR = inRangePred(from, to);
+  const items = [];
+  finance.forEach((f) => {
+    if (!inR(f.date)) return;
+    items.push({ id: `f-${f.id}`, kind: f.type, category: f.category, description: f.description, amount: f.amount || 0, date: f.date, time: f.time || '' });
+  });
+  bookings.forEach((b) => {
+    if (b.status === 'Cancelled' || !inR(b.date)) return;
+    items.push({ id: `b-${b.id}`, kind: 'In', category: 'Booking', description: `Table ${b.tableNumber}${b.memberName ? ` · ${b.memberName}` : ''}`, amount: b.amount || 0, date: b.date, time: b.start || '' });
+  });
+  items.sort((a, b) => (a.date === b.date ? (b.time || '').localeCompare(a.time || '') : (a.date < b.date ? 1 : -1)));
+  return items.slice(0, n);
+}
+
 // Member ID generator — same logic as staff side
 export function generateMemberId(cnic, existingIds = []) {
   const digits = (cnic || '').replace(/\D/g, '');

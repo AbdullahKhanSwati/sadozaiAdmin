@@ -122,6 +122,39 @@ export function Tabs({ value, onChange, items }) {
   );
 }
 
+// From/To date-range picker. Empty values mean "no bound" on that side.
+export function DateRange({ from, to, onFrom, onTo, onClear }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5">
+        <span className="text-[10px] uppercase tracking-widest text-ink-400 font-bold">From</span>
+        <input
+          type="date"
+          value={from || ''}
+          max={to || undefined}
+          onChange={(e) => onFrom(e.target.value)}
+          className="bg-transparent border-0 outline-none text-sm font-semibold cursor-pointer"
+        />
+      </div>
+      <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5">
+        <span className="text-[10px] uppercase tracking-widest text-ink-400 font-bold">To</span>
+        <input
+          type="date"
+          value={to || ''}
+          min={from || undefined}
+          onChange={(e) => onTo(e.target.value)}
+          className="bg-transparent border-0 outline-none text-sm font-semibold cursor-pointer"
+        />
+      </div>
+      {(from || to) && onClear && (
+        <button onClick={onClear} className="btn-ghost px-2.5 py-1.5 text-xs" title="Clear date range (show all)">
+          Clear
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function FilterChips({ value, onChange, items }) {
   return (
     <div className="flex flex-wrap gap-2">

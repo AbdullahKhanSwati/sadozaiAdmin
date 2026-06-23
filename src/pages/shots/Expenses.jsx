@@ -1,21 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Calendar, Plus, Receipt, Search, Tags, TrendingDown, X } from 'lucide-react';
+import { Plus, Receipt, Search, Tags, TrendingDown, X } from 'lucide-react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
-import { rupees, timeframeRange } from '../../data/shotsData.js';
-import { FilterChips, PageHeader, StatCard, EmptyState } from '../../components/ui.jsx';
+import { rupees, inRangePred, rangeLabel, defaultRange } from '../../data/shotsData.js';
+import { DateRange, FilterChips, PageHeader, StatCard, EmptyState } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
 import ExpenseCategoriesDialog from '../../components/dialogs/ExpenseCategoriesDialog.jsx';
 
 const COLORS = ['#E53E3E', '#F4B860', '#3B82F6', '#10B981', '#A855F7', '#FF6B6B', '#64748B', '#0EA5E9'];
-
-const TIMEFRAMES = [
-  { key: 'today', label: 'Today' },
-  { key: 'week', label: 'This Week' },
-  { key: 'mtd', label: 'This Month' },
-  { key: 'lastMonth', label: 'Last Month' },
-  { key: 'year', label: 'This Year' },
-  { key: 'all', label: 'All Time' },
-];
 
 export default function Expenses() {
   const { finance, addFinanceEntry, expenseCategories } = useShots();
@@ -23,15 +14,14 @@ export default function Expenses() {
   const [query, setQuery] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [catsOpen, setCatsOpen] = useState(false);
-  const [timeframe, setTimeframe] = useState('mtd');
-  const timeframeLabel = TIMEFRAMES.find((t) => t.key === timeframe)?.label || 'This Month';
+  const [{ from, to }, setRange] = useState(() => defaultRange());
+  const timeframeLabel = rangeLabel(from, to);
 
   const categoryNames = expenseCategories.map((c) => c.name);
   const expenses = useMemo(() => {
-    const range = timeframeRange(timeframe, new Date());
-    const inRange = (d) => !range || (d >= range.start && d <= range.end);
+    const inRange = inRangePred(from, to);
     return finance.filter((f) => f.type === 'Out' && inRange(f.date));
-  }, [finance, timeframe]);
+  }, [finance, from, to]);
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -58,16 +48,13 @@ export default function Expenses() {
         subtitle="Log every cost — repairs, utilities, supplies, salaries — and see where money goes."
         actions={
           <>
-            <div className="relative">
-              <Calendar className="w-4 h-4 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <select
-                value={timeframe}
-                onChange={(e) => setTimeframe(e.target.value)}
-                className="input pl-9 pr-8 py-2 font-semibold cursor-pointer appearance-none"
-              >
-                {TIMEFRAMES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-              </select>
-            </div>
+            <DateRange
+              from={from}
+              to={to}
+              onFrom={(v) => setRange((r) => ({ ...r, from: v }))}
+              onTo={(v) => setRange((r) => ({ ...r, to: v }))}
+              onClear={() => setRange({ from: '', to: '' })}
+            />
             <button onClick={() => setCatsOpen(true)} className="btn-ghost"><Tags className="w-4 h-4" /> Manage categories</button>
             <button onClick={() => setAddOpen(true)} className="btn-primary"><Plus className="w-4 h-4" /> Add expense</button>
           </>

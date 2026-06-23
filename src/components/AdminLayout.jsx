@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   ChevronsLeft, ChevronsRight, Grid3X3, LayoutDashboard,
-  LogOut, Menu, Receipt, Search, Settings as SettingsIcon, ShieldCheck,
+  LogOut, Menu, Receipt, Settings as SettingsIcon,
   Users, X, Calendar, Briefcase,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -88,17 +88,6 @@ export default function AdminLayout() {
             </div>
 
             <div className="flex-1" />
-
-            <div className="hidden md:flex items-center gap-2 bg-slate-100 rounded-xl px-3 py-2 w-[280px]">
-              <Search className="w-4 h-4 text-ink-400" />
-              <input
-                placeholder="Search members, tables, transactions…"
-                className="bg-transparent border-0 outline-none text-sm w-full placeholder:text-ink-400"
-              />
-              <kbd className="text-[10px] font-mono bg-white border border-slate-200 rounded px-1.5 py-0.5 text-ink-500">
-                ⌘K
-              </kbd>
-            </div>
 
             <div className="hidden sm:flex items-center gap-3 pl-3 ml-1 border-l border-slate-200">
               <div className="w-9 h-9 rounded-full bg-brand-gradient flex items-center justify-center font-bold text-white text-sm shadow-brand">

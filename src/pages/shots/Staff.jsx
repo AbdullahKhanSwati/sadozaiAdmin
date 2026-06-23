@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
 import {
   Briefcase, Check, Copy, Mail, Phone, Plus, RefreshCw, Search, ShieldCheck,
-  UserPlus, Wallet, X,
+  UserPlus, X,
 } from 'lucide-react';
-import { rupees } from '../../data/shotsData.js';
 import { FilterChips, PageHeader, StatCard, StatusPill, EmptyState } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
 import { createStaffLogin } from '../../lib/supabase.js';
@@ -32,16 +31,15 @@ export default function Staff() {
   return (
     <>
       <PageHeader
-        title="Staff & users"
-        subtitle="Manage staff accounts, roles, and salaries."
+        title="Staff & Users"
+        subtitle="Manage staff login accounts and roles."
         actions={<button onClick={() => setAddOpen(true)} className="btn-primary"><UserPlus className="w-4 h-4" /> Add staff</button>}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard icon={Briefcase}   label="Total staff" value={staff.length} sub="Across all roles" accent="brand" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <StatCard icon={Briefcase}   label="Total staff" value={staff.length} sub="With login access" accent="brand" />
         <StatCard icon={ShieldCheck} label="Active"      value={staff.filter((s) => s.status === 'Active').length} sub="Working now" accent="emerald" />
         <StatCard icon={Briefcase}   label="On leave"    value={staff.filter((s) => s.status === 'On Leave').length} sub="Temporary absence" accent="amber" />
-        <StatCard icon={Wallet}      label="Monthly payroll" value={rupees(staff.reduce((s, x) => s + (x.salary || 0), 0))} sub="Total salaries" accent="indigo" />
       </div>
 
       <div className="card p-4 mb-4">
@@ -87,14 +85,10 @@ export default function Staff() {
                 </div>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="mt-4">
                 <div className="rounded-xl bg-slate-50 p-3">
                   <div className="text-[10px] uppercase tracking-widest text-ink-400 font-bold">Joined</div>
                   <div className="font-semibold text-sm mt-0.5">{new Date(s.joinedAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                </div>
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <div className="text-[10px] uppercase tracking-widest text-ink-400 font-bold">Salary</div>
-                  <div className="font-extrabold text-sm mt-0.5">{rupees(s.salary)}</div>
                 </div>
               </div>
 
@@ -127,7 +121,7 @@ function generatePassword() {
 
 function AddStaffModal({ onClose, addStaff }) {
   const [form, setForm] = useState({
-    name: '', role: '', email: '', phone: '', salary: '', status: 'Active',
+    name: '', role: '', email: '', phone: '', status: 'Active',
     joinedAt: new Date().toISOString().slice(0, 10),
   });
   const [password, setPassword] = useState('');
@@ -153,7 +147,7 @@ function AddStaffModal({ onClose, addStaff }) {
         name: form.name,
       });
       // 2) Save the staff record (business data).
-      await addStaff({ ...form, salary: Number(form.salary) || 0 });
+      await addStaff({ ...form });
       setDone({ email: form.email.trim(), password, alreadyExisted });
     } catch (e) {
       setError(e?.message || 'Could not create the login. Please try again.');
@@ -236,7 +230,6 @@ function AddStaffModal({ onClose, addStaff }) {
                 </div>
                 <p className="text-[12px] text-ink-400 mt-1">Shown so you can share it with the staff member.</p>
               </div>
-              <Field label="Salary (Rs.)" placeholder="0" type="number" value={form.salary} onChange={(e) => set('salary', e.target.value)} />
               <div>
                 <label className="label">Status</label>
                 <select className="input" value={form.status} onChange={(e) => set('status', e.target.value)}>

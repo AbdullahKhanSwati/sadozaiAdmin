@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Calendar, Coins, Download, Edit3, Plus, Search, Users } from 'lucide-react';
-import { rupees, timeframeRange } from '../../data/shotsData.js';
+import { Coins, Download, Edit3, Plus, Search, Users, Calendar } from 'lucide-react';
+import { rupees, inRangePred, rangeLabel, defaultRange } from '../../data/shotsData.js';
 import {
-  EmptyState, FilterChips, PageHeader, StatCard, StatusPill, Tabs,
+  DateRange, EmptyState, FilterChips, PageHeader, StatCard, StatusPill, Tabs,
 } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
@@ -15,29 +15,19 @@ const STATUS_ITEMS = (list) => [
   { value: 'Completed', label: 'Completed', count: list.filter((b) => b.status === 'Completed').length },
 ];
 
-const TIMEFRAMES = [
-  { key: 'today', label: 'Today' },
-  { key: 'week', label: 'This Week' },
-  { key: 'mtd', label: 'This Month' },
-  { key: 'lastMonth', label: 'Last Month' },
-  { key: 'year', label: 'This Year' },
-  { key: 'all', label: 'All Time' },
-];
-
 export default function Bookings() {
   const { bookings, tables } = useShots();
-  const [timeframe, setTimeframe] = useState('mtd');
+  const [{ from, to }, setRange] = useState(() => defaultRange());
   const [status, setStatus] = useState('All');
   const [query, setQuery] = useState('');
   const [view, setView] = useState('list');
   const [dialog, setDialog] = useState({ open: false, booking: null });
-  const timeframeLabel = TIMEFRAMES.find((t) => t.key === timeframe)?.label || 'This Month';
+  const timeframeLabel = rangeLabel(from, to);
 
   const scoped = useMemo(() => {
-    const range = timeframeRange(timeframe, new Date());
-    const inRange = (d) => !range || (d >= range.start && d <= range.end);
+    const inRange = inRangePred(from, to);
     return bookings.filter((b) => inRange(b.date));
-  }, [bookings, timeframe]);
+  }, [bookings, from, to]);
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -45,7 +35,8 @@ export default function Bookings() {
       const matchQ = !q || (b.memberName || '').toLowerCase().includes(q) || String(b.tableNumber).includes(q);
       const matchS = status === 'All' || b.status === status;
       return matchQ && matchS;
-    }).sort((a, b) => (a.date === b.date ? a.start.localeCompare(b.start) : (a.date > b.date ? 1 : -1)));
+      // Newest first: latest date on top, latest start time within a day.
+    }).sort((a, b) => (a.date === b.date ? (b.start || '').localeCompare(a.start || '') : (a.date > b.date ? -1 : 1)));
   }, [scoped, query, status]);
 
   // Period totals (exclude cancelled from revenue).
@@ -54,7 +45,7 @@ export default function Bookings() {
   const periodActive = scoped.filter((b) => b.status === 'Active').length;
 
   const exportCsv = () => {
-    downloadCsv(`bookings-${timeframe}-${csvDate()}.csv`, [
+    downloadCsv(`bookings-${csvDate()}.csv`, [
       { label: 'Date', value: 'date' },
       { label: 'Start', value: 'start' },
       { label: 'End', value: 'end' },
@@ -75,16 +66,13 @@ export default function Bookings() {
         subtitle="See, manage, and create table bookings across all halls."
         actions={
           <>
-            <div className="relative">
-              <Calendar className="w-4 h-4 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <select
-                value={timeframe}
-                onChange={(e) => setTimeframe(e.target.value)}
-                className="input pl-9 pr-8 py-2 font-semibold cursor-pointer appearance-none"
-              >
-                {TIMEFRAMES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-              </select>
-            </div>
+            <DateRange
+              from={from}
+              to={to}
+              onFrom={(v) => setRange((r) => ({ ...r, from: v }))}
+              onTo={(v) => setRange((r) => ({ ...r, to: v }))}
+              onClear={() => setRange({ from: '', to: '' })}
+            />
             <button onClick={exportCsv} className="btn-ghost"><Download className="w-4 h-4" /> Export CSV</button>
             <button onClick={() => setDialog({ open: true, booking: null })} className="btn-primary">
               <Plus className="w-4 h-4" /> New booking

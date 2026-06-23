@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Calendar, Coins, CreditCard, Edit3, Mail, Phone, Trash2, Users,
 } from 'lucide-react';
-import { rupees } from '../../data/shotsData.js';
+import { rupees, memberBookingAgg } from '../../data/shotsData.js';
 import { EmptyState, StatCard, StatusPill, TierBadge } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
 import { signedUrl } from '../../lib/supabase.js';
@@ -42,7 +42,15 @@ export default function MemberDetail() {
     );
   }
 
-  const history = bookings.filter((b) => b.memberId === m.id);
+  // Every booking this member took part in (primary or co-player), newest first.
+  const history = bookings
+    .filter((b) => b.memberId === m.id || (b.members || []).some((x) => x?.id === m.id))
+    .sort((a, b) => (a.date === b.date ? (b.start || '').localeCompare(a.start || '') : (a.date > b.date ? -1 : 1)));
+
+  // Live visits + lifetime value (membership spend + booking spend).
+  const agg = memberBookingAgg(bookings).get(m.id) || { visits: 0, bookingSpend: 0 };
+  const visits = agg.visits;
+  const lifetime = (m.totalSpent || 0) + agg.bookingSpend;
 
   const handleDelete = () => {
     if (confirm(`Delete ${m.name}? This action cannot be undone.`)) {
@@ -88,8 +96,8 @@ export default function MemberDetail() {
         {/* Stats + history */}
         <div className="xl:col-span-2 space-y-4">
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            <StatCard icon={Calendar} label="Total visits"   value={m.visits} accent="brand" />
-            <StatCard icon={Coins}    label="Lifetime spent" value={rupees(m.totalSpent)} accent="emerald" />
+            <StatCard icon={Calendar} label="Total visits"   value={visits} accent="brand" />
+            <StatCard icon={Coins}    label="Lifetime spent" value={rupees(lifetime)} accent="emerald" />
             <StatCard icon={Users}    label="Tier"           value={m.type}  accent="indigo" />
           </div>
 

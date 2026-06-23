@@ -4,7 +4,7 @@ import {
   Award, Crown, Diamond, Download, Edit3, Filter, Layers, QrCode, Search, Shield, Sparkles,
   Star, UserPlus, Users,
 } from 'lucide-react';
-import { rupees } from '../../data/shotsData.js';
+import { rupees, memberBookingAgg } from '../../data/shotsData.js';
 import {
   EmptyState, FilterChips, PageHeader, StatCard, StatusPill, TierBadge,
 } from '../../components/ui.jsx';
@@ -17,12 +17,17 @@ import MembershipVirtualCard from '../../components/MembershipVirtualCard.jsx';
 const TIER_ICONS = { crown: Crown, star: Star, shield: Shield, diamond: Diamond, sparkles: Sparkles, award: Award };
 
 export default function Memberships() {
-  const { members, tiers } = useShots();
+  const { members, tiers, bookings } = useShots();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('All');
   const [memberDialog, setMemberDialog] = useState({ open: false, member: null });
   const [tiersOpen, setTiersOpen] = useState(false);
   const [previewMember, setPreviewMember] = useState(null);
+
+  // Live per-member visits + booking spend, derived from bookings.
+  const agg = useMemo(() => memberBookingAgg(bookings), [bookings]);
+  const visitsOf = (m) => agg.get(m.id)?.visits || 0;
+  const lifetimeOf = (m) => (m.totalSpent || 0) + (agg.get(m.id)?.bookingSpend || 0);
 
   const FILTERS = useMemo(() => [
     { value: 'All',     label: 'All',     count: members.length },
@@ -54,8 +59,8 @@ export default function Memberships() {
       { label: 'Email', value: 'email' },
       { label: 'Joined', value: 'joinDate' },
       { label: 'Expires', value: 'expiryDate' },
-      { label: 'Visits', value: 'visits' },
-      { label: 'Lifetime Spent (Rs.)', value: 'totalSpent' },
+      { label: 'Visits', value: (m) => visitsOf(m) },
+      { label: 'Lifetime Spent (Rs.)', value: (m) => lifetimeOf(m) },
       { label: 'Status', value: 'status' },
     ], list);
   };
@@ -191,8 +196,8 @@ export default function Memberships() {
                     <td className="table-td">{m.phone}</td>
                     <td className="table-td">{new Date(m.joinDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
                     <td className="table-td">{new Date(m.expiryDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
-                    <td className="table-td">{m.visits}</td>
-                    <td className="table-td text-right font-bold">{rupees(m.totalSpent)}</td>
+                    <td className="table-td">{visitsOf(m)}</td>
+                    <td className="table-td text-right font-bold">{rupees(lifetimeOf(m))}</td>
                     <td className="table-td"><StatusPill value={m.status} /></td>
                     <td className="table-td text-right whitespace-nowrap">
                       <button
