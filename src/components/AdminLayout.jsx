@@ -115,8 +115,8 @@ function SidebarContent({ collapsed, onCollapse, onClose, onLogout, session }) {
     <div className="flex flex-col h-full">
       {/* Brand */}
       <div className={['flex items-center gap-3 px-4 h-16 border-b border-slate-100', collapsed && 'justify-center px-2'].join(' ')}>
-        <div className="w-10 h-10 rounded-xl bg-brand-gradient flex items-center justify-center shadow-brand shrink-0">
-          <span className="text-lg">{session?.business?.emoji || '🎱'}</span>
+        <div className="w-10 h-10 rounded-xl overflow-hidden bg-black flex items-center justify-center shadow-brand shrink-0">
+          <img src="/logo-192.png" alt="Shots" className="w-full h-full object-cover" />
         </div>
         {!collapsed && (
           <div className="min-w-0">

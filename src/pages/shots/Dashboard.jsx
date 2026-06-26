@@ -38,17 +38,15 @@ export default function Dashboard() {
 
     const bookingRevenue    = periodBookings.reduce((s, b) => s + (b.amount || 0), 0);
     const membershipSales   = periodFinance.filter((f) => f.type === 'In' && f.category === 'Membership');
-    const otherIncome       = periodFinance.filter((f) => f.type === 'In' && f.category !== 'Membership');
     const expenses          = periodFinance.filter((f) => f.type === 'Out');
     const membershipRevenue = membershipSales.reduce((s, f) => s + (f.amount || 0), 0);
-    const otherIncomeTotal  = otherIncome.reduce((s, f) => s + (f.amount || 0), 0);
     const expensesTotal     = expenses.reduce((s, f) => s + (f.amount || 0), 0);
-    const totalRevenue      = bookingRevenue + membershipRevenue + otherIncomeTotal;
+    const totalRevenue      = bookingRevenue + membershipRevenue;
 
     return {
       range: from || to ? { start: from, end: to } : null,
-      periodBookings, membershipSales, otherIncome, expenses,
-      bookingRevenue, membershipRevenue, otherIncomeTotal, expensesTotal,
+      periodBookings, membershipSales, expenses,
+      bookingRevenue, membershipRevenue, expensesTotal,
       totalRevenue, netProfit: totalRevenue - expensesTotal,
     };
   }, [from, to, bookings, finance]);
@@ -86,8 +84,8 @@ export default function Dashboard() {
   // Detailed, multi-section CSV report for the selected timeframe.
   const exportCsv = () => {
     const {
-      range, periodBookings, membershipSales, otherIncome, expenses,
-      bookingRevenue, membershipRevenue, otherIncomeTotal, expensesTotal, totalRevenue, netProfit,
+      range, periodBookings, membershipSales, expenses,
+      bookingRevenue, membershipRevenue, expensesTotal, totalRevenue, netProfit,
     } = period;
     const rangeText = range ? `${range.start} to ${range.end}` : 'All time';
     const tableNo = (n) => (n ? `Table ${n}` : 'General');
@@ -111,7 +109,6 @@ export default function Dashboard() {
     M.push(['Metric', 'Amount (Rs.)']);
     M.push(['Booking Revenue', bookingRevenue]);
     M.push(['Membership Revenue', membershipRevenue]);
-    M.push(['Other Income', otherIncomeTotal]);
     M.push(['Total Revenue', totalRevenue]);
     M.push(['Total Expenses', expensesTotal]);
     M.push(['Net Profit', netProfit]);
@@ -121,17 +118,15 @@ export default function Dashboard() {
     const dayKeys = Array.from(new Set([
       ...periodBookings.map((b) => b.date),
       ...membershipSales.map((f) => f.date),
-      ...otherIncome.map((f) => f.date),
       ...expenses.map((f) => f.date),
     ])).filter(Boolean).sort();
     M.push(['DAILY BREAKDOWN']);
-    M.push(['Date', 'Booking Revenue', 'Membership Revenue', 'Other Income', 'Expenses', 'Net (Rs.)']);
+    M.push(['Date', 'Booking Revenue', 'Membership Revenue', 'Expenses', 'Net (Rs.)']);
     dayKeys.forEach((d) => {
       const bRev = periodBookings.filter((b) => b.date === d).reduce((s, b) => s + (b.amount || 0), 0);
       const mRev = membershipSales.filter((f) => f.date === d).reduce((s, f) => s + (f.amount || 0), 0);
-      const oRev = otherIncome.filter((f) => f.date === d).reduce((s, f) => s + (f.amount || 0), 0);
       const exp  = expenses.filter((f) => f.date === d).reduce((s, f) => s + (f.amount || 0), 0);
-      M.push([d, bRev, mRev, oRev, exp, bRev + mRev + oRev - exp]);
+      M.push([d, bRev, mRev, exp, bRev + mRev - exp]);
     });
     blank();
 
@@ -158,15 +153,6 @@ export default function Dashboard() {
       M.push([f.date, f.time || '', f.category || 'Membership', f.description || '', f.amount || 0]);
     });
     M.push(['', '', '', 'Total', membershipRevenue]);
-    blank();
-
-    // ---- Other income ----
-    M.push([`OTHER INCOME (${otherIncome.length})`]);
-    M.push(['Date', 'Time', 'Category', 'Description', 'Amount (Rs.)']);
-    otherIncome.forEach((f) => {
-      M.push([f.date, f.time || '', f.category || '', f.description || '', f.amount || 0]);
-    });
-    M.push(['', '', '', 'Total', otherIncomeTotal]);
     blank();
 
     // ---- Expenses ----
@@ -208,7 +194,7 @@ export default function Dashboard() {
           icon={Coins}
           label={`Revenue · ${timeframeLabel}`}
           value={rupees(period.totalRevenue)}
-          sub="Bookings + memberships + other income"
+          sub="Bookings + memberships"
           accent="brand"
         />
         <StatCard

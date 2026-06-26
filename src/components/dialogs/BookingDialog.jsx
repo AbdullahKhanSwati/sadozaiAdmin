@@ -26,7 +26,7 @@ const blankPicker = (defaults) => ({
 });
 
 export default function BookingDialog({ open, onClose, booking, defaults }) {
-  const { tables, members, bookings, bookingDurations, addBooking, updateBooking, deleteBooking } = useShots();
+  const { tables, members, bookings, bookingDurations, addBooking, updateBooking } = useShots();
   const editing = !!booking;
   const [form, setForm] = useState(() => blankPicker(defaults));
   const [error, setError] = useState('');
@@ -141,8 +141,9 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
 
   const handleDelete = () => {
     if (!editing) return;
-    if (confirm(`Cancel booking #${booking.id}? This will free up the slot.`)) {
-      deleteBooking(booking.id);
+    if (booking.status === 'Cancelled') { onClose(); return; }
+    if (confirm(`Cancel booking #${booking.id}? It will be marked Cancelled and the slot freed — the record is kept in your history and reports.`)) {
+      updateBooking(booking.id, { status: 'Cancelled' });
       onClose();
     }
   };
@@ -426,7 +427,9 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
 
         <div className="flex items-center justify-between gap-2 mt-6">
           {editing ? (
-            <button onClick={handleDelete} className="btn-danger"><Trash2 className="w-4 h-4" /> Cancel booking</button>
+            booking.status === 'Cancelled'
+              ? <span className="chip bg-rose-50 text-rose-600">Already cancelled</span>
+              : <button onClick={handleDelete} className="btn-danger"><Trash2 className="w-4 h-4" /> Cancel booking</button>
           ) : <span />}
           <div className="flex gap-2">
             <button onClick={onClose} className="btn-ghost">Close</button>

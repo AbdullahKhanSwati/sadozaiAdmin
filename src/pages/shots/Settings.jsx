@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Building2, Check, DollarSign, Mail, Plus, Save, ShieldCheck, Timer, Trash2, User,
+  Building2, Check, Mail, Plus, Save, ShieldCheck, Timer, Trash2, User,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -107,7 +107,6 @@ export default function Settings() {
 
   const sections = [
     { id: 'business',     label: 'Business profile', icon: Building2 },
-    { id: 'rates',        label: 'Pricing & rates',  icon: DollarSign },
     { id: 'durations',    label: 'Booking durations', icon: Timer },
     { id: 'security',     label: 'Security',         icon: ShieldCheck },
     { id: 'account',      label: 'Account',          icon: User },
@@ -150,17 +149,6 @@ export default function Settings() {
                 <Field label="Email" value={form.profile.email} onChange={(e) => setSec('profile', 'email', e.target.value)} />
                 <Field label="Phone" value={form.profile.phone} onChange={(e) => setSec('profile', 'phone', e.target.value)} />
                 <Field label="Address" value={form.profile.address} onChange={(e) => setSec('profile', 'address', e.target.value)} className="sm:col-span-2" />
-              </Grid2>
-            </SectionCard>
-          )}
-
-          {section === 'rates' && (
-            <SectionCard title="Default pricing" description="Used when new tables are added.">
-              <Grid2>
-                <Field label="Default member rate (Rs. / hr)" type="number" value={form.rates.member} onChange={(e) => setSec('rates', 'member', e.target.value)} />
-                <Field label="Default non-member rate (Rs. / hr)" type="number" value={form.rates.nonMember} onChange={(e) => setSec('rates', 'nonMember', e.target.value)} />
-                <Field label="VIP member rate (Rs. / hr)" type="number" value={form.rates.vipMember} onChange={(e) => setSec('rates', 'vipMember', e.target.value)} />
-                <Field label="VIP non-member rate (Rs. / hr)" type="number" value={form.rates.vipNonMember} onChange={(e) => setSec('rates', 'vipNonMember', e.target.value)} />
               </Grid2>
             </SectionCard>
           )}
