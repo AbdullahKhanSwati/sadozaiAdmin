@@ -47,7 +47,7 @@ export async function signedUrl(bucket, pathOrUrl, expiresIn = 3600) {
  * Providers → Email, otherwise the staff member can't sign in until they
  * confirm. For an internal staff tool you want it off.
  */
-export async function createStaffLogin({ email, password, name }) {
+export async function createStaffLogin({ email, password, name, role }) {
   const tmp = createClient(url, anonKey, {
     auth: {
       persistSession: false,
@@ -60,7 +60,7 @@ export async function createStaffLogin({ email, password, name }) {
   const { data, error } = await tmp.auth.signUp({
     email: (email || '').trim(),
     password,
-    options: { data: { name: name || 'Staff' } },
+    options: { data: { name: name || 'Staff', role: role || 'Staff' } },
   });
 
   if (error) {

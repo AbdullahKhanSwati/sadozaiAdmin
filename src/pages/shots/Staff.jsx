@@ -7,8 +7,13 @@ import { PageHeader, StatCard, EmptyState } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
 import { createStaffLogin, supabase } from '../../lib/supabase.js';
 
+// Roles an admin can assign. Only "Admin" (and the account owner) can see the
+// Dashboard in the app; everyone else is limited to Memberships/Bookings/Expenses.
+const ROLES = ['Admin', 'Manager', 'Cashier', 'Floor Staff', 'Receptionist', 'Maintenance'];
+const DEFAULT_ROLE = 'Floor Staff';
+
 export default function Staff() {
-  const { staff, addStaff, deleteStaff } = useShots();
+  const { staff, addStaff, deleteStaff, updateStaff } = useShots();
   const [query, setQuery] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [resetFor, setResetFor] = useState(null);
@@ -23,6 +28,21 @@ export default function Staff() {
   const handleDelete = (s) => {
     if (confirm(`Remove ${s.name || s.email} from the staff list? Their app login is not deleted, but they'll be removed here.`)) {
       deleteStaff(s.id);
+    }
+  };
+
+  // Set the role in both the staff record (display) and profiles (app gating).
+  const changeRole = async (s, role) => {
+    updateStaff(s.id, { role });
+    try {
+      const { error } = await supabase.rpc('admin_set_staff_role', {
+        target_email: s.email,
+        new_role: role,
+      });
+      if (error) throw error;
+    } catch (e) {
+      // eslint-disable-next-line no-alert
+      alert(e?.message || 'Role saved here, but the app permission could not be updated. Make sure the SQL function is installed.');
     }
   };
 
@@ -71,6 +91,23 @@ export default function Staff() {
                 <div className="flex items-center gap-2 text-ink-600">
                   <Mail className="w-4 h-4 text-ink-400" />
                   <span className="truncate" title={s.email}>{s.email || '—'}</span>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <label className="text-[10px] uppercase tracking-widest text-ink-400 font-bold">Role</label>
+                <div className="flex items-center gap-2 mt-1">
+                  <select
+                    className="input py-2"
+                    value={ROLES.includes(s.role) ? s.role : ''}
+                    onChange={(e) => changeRole(s, e.target.value)}
+                  >
+                    {!ROLES.includes(s.role) && <option value="">{s.role || 'Not set'}</option>}
+                    {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                  {['admin', 'owner'].includes(String(s.role || '').toLowerCase()) && (
+                    <span className="chip bg-violet-100 text-violet-700 whitespace-nowrap">Dashboard</span>
+                  )}
                 </div>
               </div>
 
@@ -210,7 +247,7 @@ function generatePassword() {
 
 function AddStaffModal({ onClose, addStaff }) {
   const [form, setForm] = useState({
-    name: '', email: '', status: 'Active',
+    name: '', email: '', role: DEFAULT_ROLE, status: 'Active',
     joinedAt: new Date().toISOString().slice(0, 10),
   });
   const [password, setPassword] = useState('');
@@ -233,10 +270,20 @@ function AddStaffModal({ onClose, addStaff }) {
         email: form.email,
         password,
         name: form.name || 'Staff',
+        role: form.role,
       });
       // 2) Save the staff record (business data).
       await addStaff({ ...form, name: form.name || 'Staff' });
-      setDone({ email: form.email.trim(), password, alreadyExisted });
+      // 3) Set the role in profiles so the app's Dashboard gate works.
+      let roleWarning = false;
+      try {
+        const { error: roleErr } = await supabase.rpc('admin_set_staff_role', {
+          target_email: form.email,
+          new_role: form.role,
+        });
+        if (roleErr) roleWarning = true;
+      } catch { roleWarning = true; }
+      setDone({ email: form.email.trim(), password, alreadyExisted, role: form.role, roleWarning });
     } catch (e) {
       setError(e?.message || 'Could not create the login. Please try again.');
     } finally {
@@ -275,7 +322,13 @@ function AddStaffModal({ onClose, addStaff }) {
               <div className="space-y-2">
                 <CredRow label="Email" value={done.email} />
                 <CredRow label="Password" value={done.alreadyExisted ? '•••••• (unchanged)' : done.password} />
+                <CredRow label="Role" value={done.role} />
               </div>
+              {done.roleWarning && (
+                <div className="mt-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs px-4 py-3">
+                  Login created, but the role couldn’t be applied to app permissions. Run the <b>admin_set_staff_role</b> SQL function, then set the role again from the staff card.
+                </div>
+              )}
               {!done.alreadyExisted && (
                 <button onClick={copyCreds} className="btn-ghost mt-4 text-sm">
                   {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
@@ -300,6 +353,13 @@ function AddStaffModal({ onClose, addStaff }) {
             <div className="grid grid-cols-1 gap-3">
               <Field label="Display name (optional)" placeholder="e.g. Yasir Hussain" value={form.name} onChange={(e) => set('name', e.target.value)} />
               <Field label="Username (email)" placeholder="staff@shots.com" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
+              <div>
+                <label className="label">Role</label>
+                <select className="input" value={form.role} onChange={(e) => set('role', e.target.value)}>
+                  {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+                <p className="text-[12px] text-ink-400 mt-1">Only <b>Admin</b> can see the Dashboard in the app.</p>
+              </div>
               <div>
                 <label className="label">Password</label>
                 <div className="flex gap-2">
