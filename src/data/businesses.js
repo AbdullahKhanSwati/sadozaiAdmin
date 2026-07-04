@@ -29,10 +29,14 @@ export const businesses = [
     type: 'Food Restaurant',
     tag: 'Food & Drinks',
     emoji: '🍔',
-    accent: '#FF6B6B',
-    accentDark: '#C44141',
-    available: false,
-    summary: 'Menu, orders, kitchen, delivery',
+    accent: '#4CAF50',
+    accentDark: '#2E7D32',
+    available: true,
+    // `demo: true` → signs in against these static credentials (no Supabase).
+    demo: true,
+    summary: 'Reports, items, employees, customers',
+    defaultEmail: 'admin@munchies.com',
+    defaultPassword: 'admin123',
   },
   {
     id: 'sadozai-properties',

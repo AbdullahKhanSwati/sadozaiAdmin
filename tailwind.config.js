@@ -28,6 +28,19 @@ export default {
           800: '#1E293B',
           900: '#0F172A',
         },
+        // Munchies admin (Loyverse-style green)
+        mun: {
+          50:  '#E8F5E9',
+          100: '#C8E6C9',
+          200: '#A5D6A7',
+          300: '#81C784',
+          400: '#66BB6A',
+          500: '#4CAF50',
+          600: '#43A047',
+          700: '#2E7D32',
+          800: '#256428',
+          900: '#1B5E20',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],

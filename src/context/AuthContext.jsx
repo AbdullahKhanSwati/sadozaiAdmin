@@ -1,7 +1,33 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase.js';
+import { businesses as localBusinesses } from '../data/businesses.js';
 
 const AuthContext = createContext(null);
+
+// Static "demo" sign-in (no Supabase) — used for businesses flagged `demo: true`
+// in data/businesses.js, e.g. Munchies. Persisted so a refresh keeps you in.
+const DEMO_KEY = 'sadozai.demoSession';
+
+function findDemoBusiness(email, password) {
+  const e = (email || '').trim().toLowerCase();
+  return localBusinesses.find(
+    (b) => b.demo && b.available &&
+      (b.defaultEmail || '').toLowerCase() === e &&
+      b.defaultPassword === password
+  );
+}
+
+function demoSessionFor(b, email) {
+  return {
+    user: null,
+    email: email || b.defaultEmail,
+    profile: null,
+    businessId: b.id,
+    business: { ...b },
+    demo: true,
+    at: Date.now(),
+  };
+}
 
 // Map a `businesses` DB row → the camelCase shape the UI already expects.
 function mapBusiness(row) {
@@ -27,8 +53,24 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Restore a persisted demo session (e.g. Munchies) before hitting Supabase.
+  const [demoSession, setDemoSession] = useState(() => {
+    try {
+      const raw = localStorage.getItem(DEMO_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
+
   useEffect(() => {
     let active = true;
+
+    // A demo session short-circuits Supabase entirely.
+    if (demoSession) {
+      setLoading(false);
+      return () => { active = false; };
+    }
 
     async function bootstrap(authSession) {
       if (!authSession?.user) {
@@ -73,24 +115,40 @@ export function AuthProvider({ children }) {
       active = false;
       sub.subscription.unsubscribe();
     };
-  }, []);
+  }, [demoSession]);
+
+  // The effective session: a demo session (Munchies) wins over Supabase.
+  const activeSession = demoSession || session;
 
   const value = useMemo(
     () => ({
-      session,
+      session: activeSession,
       loading,
-      // Real Supabase email/password sign-in. Throws on failure so the
-      // login form can show the message.
+      // Sign in. Static-credential ("demo") businesses like Munchies are matched
+      // locally and never touch Supabase; everything else uses Supabase auth.
       login: async (email, password) => {
+        const demoBiz = findDemoBusiness(email, password);
+        if (demoBiz) {
+          const ds = demoSessionFor(demoBiz, email);
+          try { localStorage.setItem(DEMO_KEY, JSON.stringify(ds)); } catch { /* ignore */ }
+          setDemoSession(ds);
+          setLoading(false);
+          return;
+        }
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       },
       logout: async () => {
+        if (demoSession) {
+          try { localStorage.removeItem(DEMO_KEY); } catch { /* ignore */ }
+          setDemoSession(null);
+          return;
+        }
         await supabase.auth.signOut();
         setSession(null);
       },
     }),
-    [session, loading]
+    [activeSession, demoSession, loading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

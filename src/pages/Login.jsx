@@ -45,7 +45,9 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email, password);
-      navigate('/admin/dashboard', { replace: true });
+      // HomeRedirect routes to the correct admin (Shots or Munchies) once the
+      // session's business resolves.
+      navigate('/', { replace: true });
     } catch (err) {
       setError(err?.message || 'Sign in failed. Check your email and password.');
     } finally {
@@ -85,7 +87,7 @@ export default function Login() {
             </h1>
             <p className="text-white/70 mt-3 text-sm lg:text-base">
               Pick one of your businesses below to sign in to its admin dashboard.
-              Only the Shots panel is enabled in this release.
+              Shots and Munchies panels are enabled in this release.
             </p>
           </div>
 
