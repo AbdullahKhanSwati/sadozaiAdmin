@@ -190,25 +190,24 @@ export default function Dashboard() {
 
       {/* KPI grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-        <StatCard
-          icon={Coins}
+        <RevenueStatCard
           label={`Revenue · ${timeframeLabel}`}
-          value={rupees(period.totalRevenue)}
-          sub="Bookings + memberships"
-          accent="brand"
+          total={period.totalRevenue}
+          bookingRevenue={period.bookingRevenue}
+          membershipRevenue={period.membershipRevenue}
         />
         <StatCard
           icon={Calendar}
           label={`Bookings · ${timeframeLabel}`}
-          value={period.periodBookings.length}
-          sub={`${rupees(period.bookingRevenue)} from bookings`}
+          value={rupees(period.bookingRevenue)}
+          sub={`From ${period.periodBookings.length} booking${period.periodBookings.length === 1 ? '' : 's'}`}
           accent="blue"
         />
         <StatCard
           icon={Users}
           label="Active Members"
           value={activeMembers}
-          sub={`${expiredMembers} expired this month`}
+          sub={`${expiredMembers} Expired this month`}
           trend="+4 new"
           accent="emerald"
         />
@@ -216,7 +215,7 @@ export default function Dashboard() {
           icon={Grid3X3}
           label="Tables"
           value={`${available} / ${tables.length}`}
-          sub={`${occupied} occupied · ${tables.length - available - occupied} maintenance`}
+          sub={`${occupied} Occupied · ${tables.length - available - occupied} Maintenance`}
           accent="amber"
         />
       </div>
@@ -268,7 +267,7 @@ export default function Dashboard() {
           <div className="relative">
             <div className="text-[11px] uppercase tracking-widest font-bold opacity-80">{timeframeLabel}</div>
             <h3 className="text-3xl font-extrabold mt-1">{rupees(period.netProfit)}</h3>
-            <p className="text-xs opacity-80">Net profit</p>
+            <p className="text-xs opacity-80">Net Profit</p>
 
             <div className="mt-5 space-y-3">
               <MTDRow label="Total Revenue" amount={period.totalRevenue} Icon={TrendingUp} tone="bg-white/15" />
@@ -444,6 +443,32 @@ export default function Dashboard() {
       </div>
 
     </>
+  );
+}
+
+// Revenue KPI that mirrors the mobile app's Overview: a headline total with the
+// Booking vs Membership split listed underneath.
+function RevenueStatCard({ label, total, bookingRevenue, membershipRevenue }) {
+  return (
+    <div className="card card-hover p-5 flex items-start gap-4">
+      <div className="w-11 h-11 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center ring-1 ring-brand-100">
+        <Coins className="w-5 h-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-[11px] uppercase tracking-widest font-bold text-ink-400">{label}</div>
+        <div className="mt-1 text-2xl font-extrabold tracking-tight truncate">{rupees(total)}</div>
+        <div className="mt-2 space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-ink-500 font-semibold">Bookings</span>
+            <span className="text-ink-700 font-bold">{rupees(bookingRevenue)}</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-ink-500 font-semibold">Memberships</span>
+            <span className="text-ink-700 font-bold">{rupees(membershipRevenue)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

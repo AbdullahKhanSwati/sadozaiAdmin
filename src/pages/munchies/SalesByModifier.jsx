@@ -1,10 +1,12 @@
 import { FileCheck2 } from 'lucide-react';
 import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination } from './munchiesUi.jsx';
-import { modifierRows, rs } from '../../data/munchiesData.js';
+import { rs } from '../../data/munchiesData.js';
+import { useMunchies } from '../../store/MunchiesStore.jsx';
 
 export default function SalesByModifier() {
+  const { reports } = useMunchies();
   // Paginate by modifier group (each group + its options is one unit).
-  const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(modifierRows, 5);
+  const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(reports.modifierRows, 5);
 
   return (
     <div className="max-w-[1400px] mx-auto">

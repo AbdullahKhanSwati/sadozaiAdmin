@@ -1,15 +1,43 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, X } from 'lucide-react';
 import { Card, PrimaryBtn, TextBtn } from './catalogUi.jsx';
 import { usePagination, TablePagination } from './munchiesUi.jsx';
 import { useMunchies } from '../../store/MunchiesStore.jsx';
 import { rs } from '../../data/munchiesData.js';
+import { downloadCsv, parseCsv, csvDate } from '../../lib/csv.js';
 
 export default function CustomerList() {
   const navigate = useNavigate();
-  const { customers } = useMunchies();
+  const { customers, saveCustomer } = useMunchies();
   const [q, setQ] = useState('');
+  const fileRef = useRef(null);
+
+  const onExport = () => downloadCsv(`munchies-customers-${csvDate()}.csv`,
+    [
+      { label: 'Name', value: 'name' }, { label: 'Email', value: 'email' },
+      { label: 'Phone', value: 'phone' }, { label: 'City', value: 'city' },
+      { label: 'Total visits', value: 'visits' }, { label: 'Total spent', value: 'spent' },
+      { label: 'Points', value: 'points' },
+    ], customers);
+
+  const onImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const rows = parseCsv(await file.text());
+    for (const r of rows) {
+      const name = r.Name || r.name;
+      const phone = r.Phone || r.phone;
+      const email = r.Email || r.email;
+      if (!name && !phone && !email) continue;
+      await saveCustomer({
+        name: name || '', email: email || '', phone: phone || '', city: r.City || r.city || '',
+        visits: Number(r['Total visits'] || r.visits) || 0, spent: Number(r['Total spent'] || r.spent) || 0,
+        points: Number(r.Points || r.points) || 0,
+      });
+    }
+    e.target.value = '';
+  };
 
   const filtered = customers.filter((c) =>
     `${c.name || 'unknown'} ${c.email} ${c.phone}`.toLowerCase().includes(q.toLowerCase())
@@ -22,8 +50,9 @@ export default function CustomerList() {
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-4 p-5">
           <PrimaryBtn onClick={() => navigate('/munchies/customers/new')}>+ Add customer</PrimaryBtn>
-          <TextBtn>Import</TextBtn>
-          <TextBtn>Export</TextBtn>
+          <TextBtn onClick={() => fileRef.current?.click()}>Import</TextBtn>
+          <TextBtn onClick={onExport}>Export</TextBtn>
+          <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={onImport} />
           <div className="flex-1" />
           <div className="relative flex items-center gap-2 min-w-[260px] border-b border-mun-500 pb-1">
             <Search className="w-5 h-5 text-ink-400" />

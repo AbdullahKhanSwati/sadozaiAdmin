@@ -4,14 +4,15 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { ReportToolbar, Panel, ExportBar, ChartSelect, usePagination, TablePagination } from './munchiesUi.jsx';
-import {
-  topItems, itemSeries, itemPie, itemRows, ITEM_CHART_TYPES, GRANULARITY_OPTIONS, rs, rsAxis,
-} from '../../data/munchiesData.js';
+import { ITEM_CHART_TYPES, GRANULARITY_OPTIONS, rs, rsAxis } from '../../data/munchiesData.js';
+import { useMunchies } from '../../store/MunchiesStore.jsx';
 
 export default function SalesByItem() {
+  const { reports } = useMunchies();
+  const { topItems, itemPie, itemRows } = reports;
   const [chartType, setChartType] = useState('Bar');
   const [granularity, setGranularity] = useState('Weeks');
-  const data = itemSeries(granularity);
+  const data = reports.itemSeries(granularity);
   const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(itemRows, 10);
 
   return (
@@ -50,7 +51,7 @@ export default function SalesByItem() {
             </div>
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                {renderItemChart(chartType, data)}
+                {renderItemChart(chartType, data, topItems, itemPie)}
               </ResponsiveContainer>
             </div>
           </div>
@@ -100,7 +101,7 @@ export default function SalesByItem() {
 
 // Returns a Line / stacked-Bar / Pie chart element for the top-5 items.
 // Must return the chart element directly for ResponsiveContainer sizing.
-function renderItemChart(type, data) {
+function renderItemChart(type, data, topItems, itemPie) {
   if (type === 'Pie') {
     return (
       <PieChart>

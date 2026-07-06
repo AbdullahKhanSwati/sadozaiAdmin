@@ -13,10 +13,18 @@ export default function CategoryForm() {
   const [name, setName] = useState(existing?.name || '');
   const [color, setColor] = useState(existing?.color || '#BDBDBD');
 
-  const onSave = () => {
+  const onSave = async () => {
     if (!name.trim()) return;
-    saveCategory({ ...(existing || { count: 0 }), id: existing?.id, name: name.trim(), color });
-    navigate('/munchies/items/categories');
+    try {
+      await saveCategory({ id: existing?.id, name: name.trim(), color });
+      navigate('/munchies/items/categories');
+    } catch (e) { window.alert(e?.message || 'Could not save the category.'); }
+  };
+
+  const onDelete = async () => {
+    if (!window.confirm('Delete this category?')) return;
+    try { await deleteCategory(existing.id); navigate('/munchies/items/categories'); }
+    catch (e) { window.alert(e?.message || 'Could not delete the category.'); }
   };
 
   return (
@@ -28,7 +36,7 @@ export default function CategoryForm() {
 
       <div className="flex items-center justify-end gap-6 mt-4 px-2">
         {existing && (
-          <button onClick={() => { deleteCategory(existing.id); navigate('/munchies/items/categories'); }} className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-rose-500 hover:text-rose-600 mr-auto">
+          <button onClick={onDelete} className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-rose-500 hover:text-rose-600 mr-auto">
             <Trash2 className="w-4 h-4" /> Delete
           </button>
         )}

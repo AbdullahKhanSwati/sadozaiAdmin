@@ -7,10 +7,11 @@ import { PageHeader, StatCard, EmptyState } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
 import { createStaffLogin, supabase } from '../../lib/supabase.js';
 
-// Roles an admin can assign. Only "Admin" (and the account owner) can see the
-// Dashboard in the app; everyone else is limited to Memberships/Bookings/Expenses.
-const ROLES = ['Admin', 'Manager', 'Cashier', 'Floor Staff', 'Receptionist', 'Maintenance'];
-const DEFAULT_ROLE = 'Floor Staff';
+// Roles an admin can assign. Only "Admin" (and the account owner) can sign in to
+// this admin panel and see the Dashboard in the app; "Staff" is limited to the
+// mobile app (Memberships/Bookings/Expenses) and cannot open the admin panel.
+const ROLES = ['Admin', 'Staff'];
+const DEFAULT_ROLE = 'Staff';
 
 export default function Staff() {
   const { staff, addStaff, deleteStaff, updateStaff } = useShots();
@@ -358,7 +359,7 @@ function AddStaffModal({ onClose, addStaff }) {
                 <select className="input" value={form.role} onChange={(e) => set('role', e.target.value)}>
                   {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
                 </select>
-                <p className="text-[12px] text-ink-400 mt-1">Only <b>Admin</b> can see the Dashboard in the app.</p>
+                <p className="text-[12px] text-ink-400 mt-1"><b>Admin</b> can sign in to this admin panel and see the Dashboard in the app. <b>Staff</b> can only use the mobile app.</p>
               </div>
               <div>
                 <label className="label">Password</label>

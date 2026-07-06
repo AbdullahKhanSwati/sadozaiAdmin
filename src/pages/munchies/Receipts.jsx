@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Receipt, ReceiptText, Search, ChevronDown } from 'lucide-react';
 import { ReportToolbar, Panel, usePagination, TablePagination } from './munchiesUi.jsx';
-import { receiptStats, receiptRows, rs } from '../../data/munchiesData.js';
+import { rs } from '../../data/munchiesData.js';
+import { useMunchies } from '../../store/MunchiesStore.jsx';
 
 const TABS = [
   { key: 'all', label: 'All receipts', icon: Receipt, tone: 'bg-slate-500' },
@@ -9,6 +10,8 @@ const TABS = [
 ];
 
 export default function Receipts() {
+  const { reports } = useMunchies();
+  const { receiptStats, receiptRows } = reports;
   const [tab, setTab] = useState('all');
   const [q, setQ] = useState('');
 

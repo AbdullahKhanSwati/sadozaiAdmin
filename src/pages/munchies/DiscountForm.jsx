@@ -15,10 +15,18 @@ export default function DiscountForm() {
   const [variable, setVariable] = useState(existing ? existing.value == null : false);
   const [value, setValue] = useState(existing?.value ?? '');
 
-  const onSave = () => {
+  const onSave = async () => {
     if (!name.trim()) return;
-    saveDiscount({ id: existing?.id, name: name.trim(), type, value: variable ? null : Number(value) || 0 });
-    navigate('/munchies/items/discounts');
+    try {
+      await saveDiscount({ id: existing?.id, name: name.trim(), type, value: variable ? null : Number(value) || 0 });
+      navigate('/munchies/items/discounts');
+    } catch (e) { window.alert(e?.message || 'Could not save the discount.'); }
+  };
+
+  const onDelete = async () => {
+    if (!window.confirm('Delete this discount?')) return;
+    try { await deleteDiscount(existing.id); navigate('/munchies/items/discounts'); }
+    catch (e) { window.alert(e?.message || 'Could not delete the discount.'); }
   };
 
   return (
@@ -55,7 +63,7 @@ export default function DiscountForm() {
 
       <div className="flex items-center justify-between mt-4 px-2">
         {existing ? (
-          <button onClick={() => { deleteDiscount(existing.id); navigate('/munchies/items/discounts'); }} className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-rose-500 hover:text-rose-600">
+          <button onClick={onDelete} className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-rose-500 hover:text-rose-600">
             <Trash2 className="w-4 h-4" /> Delete
           </button>
         ) : <span />}

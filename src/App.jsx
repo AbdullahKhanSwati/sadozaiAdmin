@@ -41,7 +41,8 @@ import CustomerForm from './pages/munchies/CustomerForm.jsx';
 import Account from './pages/munchies/Account.jsx';
 
 function RequireAuth({ children }) {
-  const { session } = useAuth();
+  const { session, loading } = useAuth();
+  if (loading) return null; // wait for the async session refresh before deciding
   if (!session) return <Navigate to="/login" replace />;
   return children;
 }

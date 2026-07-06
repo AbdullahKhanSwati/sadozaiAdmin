@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Image as ImageIcon } from 'lucide-react';
+import { Plus, Image as ImageIcon, Trash2, Loader2 } from 'lucide-react';
 import {
   Card, Field, Radio, Toggle, ColorPicker, ShapePicker, PrimaryBtn, GhostBtn, underline,
 } from './catalogUi.jsx';
 import { useMunchies } from '../../store/MunchiesStore.jsx';
+import { uploadItemImage } from '../../lib/supabaseMunchies.js';
 
 export default function ItemForm() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { items, categories, modifiers, saveItem } = useMunchies();
+  const { items, categories, modifiers, saveItem, deleteItem } = useMunchies();
 
   const existing = items.find((i) => i.id === id);
   const [form, setForm] = useState(() =>
@@ -17,19 +18,56 @@ export default function ItemForm() {
       name: '', categoryId: '', description: '', availableForSale: true,
       soldBy: 'Each', price: '', cost: 0, sku: String(10001 + items.length),
       barcode: '', composite: false, trackStock: false, modifiers: [],
-      color: '#BDBDBD', shape: 'square', representation: 'color',
+      color: '#BDBDBD', shape: 'square', image: '', variants: [],
     }
   );
   const [rep, setRep] = useState(existing?.image ? 'image' : 'color');
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
   const toggleMod = (mid) =>
     set({ modifiers: form.modifiers.includes(mid) ? form.modifiers.filter((x) => x !== mid) : [...form.modifiers, mid] });
 
-  const onSave = () => {
+  const variants = form.variants || [];
+  const addVariant = () => set({ variants: [...variants, { name: '', price: '' }] });
+  const setVariant = (i, patch) => set({ variants: variants.map((v, idx) => (idx === i ? { ...v, ...patch } : v)) });
+  const delVariant = (i) => set({ variants: variants.filter((_, idx) => idx !== i) });
+
+  const onUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadItemImage(file);
+      set({ image: url });
+    } catch (err) {
+      window.alert(err?.message || 'Upload failed.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onSave = async () => {
     if (!form.name.trim()) return;
-    saveItem({ ...form, price: Number(form.price) || 0, cost: Number(form.cost) || 0 });
-    navigate('/munchies/items/list');
+    setSaving(true);
+    const cleanVariants = variants.filter((v) => v.name.trim()).map((v) => ({ name: v.name.trim(), price: Number(v.price) || 0 }));
+    try {
+      await saveItem({
+        ...form, price: Number(form.price) || 0, cost: Number(form.cost) || 0,
+        image: rep === 'image' ? form.image : (form.image || ''), variants: cleanVariants,
+      });
+      navigate('/munchies/items/list');
+    } catch (e) {
+      window.alert(e?.message || 'Could not save the item.');
+      setSaving(false);
+    }
+  };
+
+  const onDelete = async () => {
+    if (!window.confirm('Delete this item?')) return;
+    try { await deleteItem(existing.id); navigate('/munchies/items/list'); }
+    catch (e) { window.alert(e?.message || 'Could not delete the item.'); }
   };
 
   return (
@@ -90,7 +128,24 @@ export default function ItemForm() {
       <Card className="p-6 sm:p-8 mb-4">
         <h3 className="text-xl font-semibold text-ink-800 mb-3">Variants</h3>
         <p className="text-sm text-ink-500 mb-4">Use variants if an item has different sizes, colors or other options</p>
-        <button className="flex items-center gap-2 text-mun-600 font-bold text-sm uppercase tracking-wide">
+        {variants.length > 0 && (
+          <div className="space-y-4 mb-4">
+            {variants.map((v, i) => (
+              <div key={i} className="flex items-end gap-4">
+                <div className="flex-1">
+                  <div className="text-xs text-ink-400 mb-1">Variant name</div>
+                  <input value={v.name} onChange={(e) => setVariant(i, { name: e.target.value })} placeholder="e.g. Large" className={underline} />
+                </div>
+                <div className="w-32">
+                  <div className="text-xs text-ink-400 mb-1">Price</div>
+                  <input value={v.price} onChange={(e) => setVariant(i, { price: e.target.value })} placeholder="Rs0.00" className={underline} inputMode="numeric" />
+                </div>
+                <button onClick={() => delVariant(i)} className="text-slate-400 hover:text-rose-500 mb-1.5"><Trash2 className="w-5 h-5" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+        <button onClick={addVariant} className="flex items-center gap-2 text-mun-600 font-bold text-sm uppercase tracking-wide">
           <Plus className="w-5 h-5 rounded-full border-2 border-mun-600 p-0.5" /> Add variants
         </button>
       </Card>
@@ -123,22 +178,40 @@ export default function ItemForm() {
               <ColorPicker value={form.color} onChange={(c) => set({ color: c })} />
               <ShapePicker value={form.shape} onChange={(s) => set({ shape: s })} />
             </div>
-            <div className="w-28 h-28 bg-slate-50 border border-slate-200 rounded-md flex items-center justify-center text-slate-300">
-              <ImageIcon className="w-8 h-8" />
+            <div className="w-28 h-28 bg-slate-50 border border-slate-200 rounded-md flex items-center justify-center text-slate-300 overflow-hidden">
+              {form.image ? <img src={form.image} alt="" className="w-full h-full object-cover" /> : <ImageIcon className="w-8 h-8" />}
             </div>
           </div>
         ) : (
-          <div className="w-40 h-40 bg-slate-50 border-2 border-dashed border-slate-200 rounded-md flex flex-col items-center justify-center text-slate-400 gap-2 cursor-pointer">
-            <ImageIcon className="w-8 h-8" />
-            <span className="text-xs">Upload image</span>
-          </div>
+          <label className="w-40 h-40 bg-slate-50 border-2 border-dashed border-slate-200 rounded-md flex flex-col items-center justify-center text-slate-400 gap-2 cursor-pointer overflow-hidden relative">
+            {uploading ? (
+              <Loader2 className="w-8 h-8 animate-spin text-mun-500" />
+            ) : form.image ? (
+              <>
+                <img src={form.image} alt="" className="w-full h-full object-cover" />
+                <span className="absolute bottom-1 right-1 bg-white/90 rounded px-1.5 py-0.5 text-[10px] text-ink-600">Change</span>
+              </>
+            ) : (
+              <>
+                <ImageIcon className="w-8 h-8" />
+                <span className="text-xs">Upload image</span>
+              </>
+            )}
+            <input type="file" accept="image/*" className="hidden" onChange={onUpload} />
+          </label>
         )}
       </Card>
 
       {/* Footer actions */}
-      <div className="flex justify-end gap-3">
+      <div className="flex items-center gap-3">
+        {existing && (
+          <button onClick={onDelete} className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-rose-500 hover:text-rose-600">
+            <Trash2 className="w-4 h-4" /> Delete
+          </button>
+        )}
+        <div className="flex-1" />
         <GhostBtn onClick={() => navigate('/munchies/items/list')}>Cancel</GhostBtn>
-        <PrimaryBtn onClick={onSave}>Save</PrimaryBtn>
+        <PrimaryBtn onClick={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</PrimaryBtn>
       </div>
     </div>
   );

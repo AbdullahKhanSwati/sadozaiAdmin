@@ -1,8 +1,10 @@
 import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination } from './munchiesUi.jsx';
-import { discountRows, rs } from '../../data/munchiesData.js';
+import { rs } from '../../data/munchiesData.js';
+import { useMunchies } from '../../store/MunchiesStore.jsx';
 
 export default function Discounts() {
-  const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(discountRows, 10);
+  const { reports } = useMunchies();
+  const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(reports.discountReportRows, 10);
 
   return (
     <div className="max-w-[1400px] mx-auto">

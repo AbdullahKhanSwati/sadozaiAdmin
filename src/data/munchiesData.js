@@ -291,14 +291,15 @@ export const featureToggles = [
   { key: 'negativeStock', label: 'Negative stock alerts', desc: 'Get alerts when item stock goes below zero.', on: true },
 ];
 
-// Settings left sub-navigation (only "Features" is built for now).
+// Settings left sub-navigation. `hidden` items are kept here but not shown
+// (only "Features" is built for now).
 export const settingsSections = [
-  'Features',
-  'Billing & subscriptions',
-  'Payment types',
-  'Loyalty',
-  'Taxes',
-  'Receipt',
-  'Kitchen printers',
-  'Dining options',
+  { name: 'Features' },
+  { name: 'Billing & subscriptions', hidden: true },
+  { name: 'Payment types', hidden: true },
+  { name: 'Loyalty', hidden: true },
+  { name: 'Taxes', hidden: true },
+  { name: 'Receipt' },
+  { name: 'Kitchen printers' },
+  { name: 'Dining options' },
 ];

@@ -1,154 +1,133 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase.js';
+import { supabaseMunchies } from '../lib/supabaseMunchies.js';
 import { businesses as localBusinesses } from '../data/businesses.js';
 
 const AuthContext = createContext(null);
 
-// Static "demo" sign-in (no Supabase) — used for businesses flagged `demo: true`
-// in data/businesses.js, e.g. Munchies. Persisted so a refresh keeps you in.
-const DEMO_KEY = 'sadozai.demoSession';
+const isAdminRole = (role) => ['admin', 'owner'].includes((role || '').toLowerCase());
 
-function findDemoBusiness(email, password) {
-  const e = (email || '').trim().toLowerCase();
-  return localBusinesses.find(
-    (b) => b.demo && b.available &&
-      (b.defaultEmail || '').toLowerCase() === e &&
-      b.defaultPassword === password
-  );
-}
-
-function demoSessionFor(b, email) {
-  return {
-    user: null,
-    email: email || b.defaultEmail,
-    profile: null,
-    businessId: b.id,
-    business: { ...b },
-    demo: true,
-    at: Date.now(),
-  };
-}
-
-// Map a `businesses` DB row → the camelCase shape the UI already expects.
+// Map a Shots `businesses` DB row → the camelCase shape the UI expects.
 function mapBusiness(row) {
   if (!row) return null;
   return {
-    id: row.id,
-    name: row.name,
-    type: row.type,
-    tag: row.tag,
-    emoji: row.emoji,
-    accent: row.accent,
-    accentDark: row.accent_dark,
-    available: row.available,
-    summary: row.summary,
-    defaultEmail: row.default_email,
-    defaultPassword: row.default_password,
+    id: row.id, name: row.name, type: row.type, tag: row.tag, emoji: row.emoji,
+    accent: row.accent, accentDark: row.accent_dark, available: row.available,
+    summary: row.summary, defaultEmail: row.default_email, defaultPassword: row.default_password,
   };
 }
 
+const munchiesBusiness = () => localBusinesses.find((b) => b.id === 'munchies') || { id: 'munchies', name: 'Munchies' };
+
 export function AuthProvider({ children }) {
-  // session shape kept identical to what AdminLayout/Settings read:
-  //   { business, email, user, profile, businessId, at }
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const reqRef = useRef(0); // guards against out-of-order async refreshes
 
-  // Restore a persisted demo session (e.g. Munchies) before hitting Supabase.
-  const [demoSession, setDemoSession] = useState(() => {
-    try {
-      const raw = localStorage.getItem(DEMO_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
+  // Read the Munchies profile (holds the access role).
+  const fetchMunchiesProfile = async (userId) => {
+    const { data } = await supabaseMunchies.from('profiles').select('*').eq('user_id', userId).maybeSingle();
+    return data || null;
+  };
+
+  const munchiesSession = (user, profile) => ({
+    user,
+    email: user.email,
+    profile,
+    businessId: 'munchies',
+    business: munchiesBusiness(),
+    role: profile?.role || 'admin',
+    at: Date.now(),
   });
 
-  useEffect(() => {
-    let active = true;
+  const buildShotsSession = async (user) => {
+    const { data: profile } = await supabase.from('profiles').select('*').eq('user_id', user.id).maybeSingle();
+    const businessId = profile?.business_id || 'shots';
+    const { data: businessRow } = await supabase.from('businesses').select('*').eq('id', businessId).maybeSingle();
+    return {
+      user, email: user.email, profile: profile || null,
+      businessId, business: mapBusiness(businessRow), role: profile?.role, at: Date.now(),
+    };
+  };
 
-    // A demo session short-circuits Supabase entirely.
-    if (demoSession) {
-      setLoading(false);
-      return () => { active = false; };
-    }
+  // Determine the active session: Munchies (admin only) wins, else Shots.
+  const refresh = async () => {
+    const token = ++reqRef.current;
+    setLoading(true);
 
-    async function bootstrap(authSession) {
-      if (!authSession?.user) {
-        if (active) {
-          setSession(null);
-          setLoading(false);
-        }
+    const { data: m } = await supabaseMunchies.auth.getSession();
+    if (m.session?.user) {
+      const prof = await fetchMunchiesProfile(m.session.user.id);
+      if (prof && isAdminRole(prof.role)) {
+        if (token === reqRef.current) { setSession(munchiesSession(m.session.user, prof)); setLoading(false); }
         return;
       }
-
-      const user = authSession.user;
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      const businessId = profile?.business_id || 'shots';
-
-      const { data: businessRow } = await supabase
-        .from('businesses')
-        .select('*')
-        .eq('id', businessId)
-        .maybeSingle();
-
-      if (!active) return;
-      setSession({
-        user,
-        email: user.email,
-        profile: profile || null,
-        businessId,
-        business: mapBusiness(businessRow),
-        at: Date.now(),
-      });
-      setLoading(false);
+      // Staff (or missing profile) may not use the admin panel.
+      await supabaseMunchies.auth.signOut();
     }
 
-    supabase.auth.getSession().then(({ data }) => bootstrap(data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => bootstrap(s));
+    const { data: s } = await supabase.auth.getSession();
+    if (s.session?.user) {
+      const built = await buildShotsSession(s.session.user);
+      // Only admins/owners may use the admin panel — refuse a restored staff session.
+      if (!isAdminRole(built.role)) {
+        await supabase.auth.signOut();
+        if (token === reqRef.current) { setSession(null); setLoading(false); }
+        return;
+      }
+      if (token === reqRef.current) { setSession(built); setLoading(false); }
+      return;
+    }
 
+    if (token === reqRef.current) { setSession(null); setLoading(false); }
+  };
+
+  useEffect(() => {
+    refresh();
+    const { data: subM } = supabaseMunchies.auth.onAuthStateChange(() => refresh());
+    const { data: subS } = supabase.auth.onAuthStateChange(() => refresh());
     return () => {
-      active = false;
-      sub.subscription.unsubscribe();
+      subM.subscription.unsubscribe();
+      subS.subscription.unsubscribe();
     };
-  }, [demoSession]);
-
-  // The effective session: a demo session (Munchies) wins over Supabase.
-  const activeSession = demoSession || session;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const value = useMemo(
     () => ({
-      session: activeSession,
+      session,
       loading,
-      // Sign in. Static-credential ("demo") businesses like Munchies are matched
-      // locally and never touch Supabase; everything else uses Supabase auth.
-      login: async (email, password) => {
-        const demoBiz = findDemoBusiness(email, password);
-        if (demoBiz) {
-          const ds = demoSessionFor(demoBiz, email);
-          try { localStorage.setItem(DEMO_KEY, JSON.stringify(ds)); } catch { /* ignore */ }
-          setDemoSession(ds);
-          setLoading(false);
+      // Sign in. Munchies authenticates against its own project and requires an
+      // admin role (staff are refused — they can only use the Munchies app).
+      login: async (email, password, businessId) => {
+        if (businessId === 'munchies') {
+          const { data, error } = await supabaseMunchies.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+          const prof = await fetchMunchiesProfile(data.user.id);
+          if (!prof || !isAdminRole(prof.role)) {
+            await supabaseMunchies.auth.signOut();
+            throw new Error('This is a staff account. Staff can only use the Munchies app, not the admin panel.');
+          }
+          setSession(munchiesSession(data.user, prof));
           return;
         }
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        // Shots admin panel is admin-only. Staff accounts can sign in to the
+        // mobile app but must be refused here.
+        const { data: prof } = await supabase.from('profiles').select('role').eq('user_id', data.user.id).maybeSingle();
+        if (!prof || !isAdminRole(prof.role)) {
+          await supabase.auth.signOut();
+          throw new Error('This is a staff account. Staff can only use the Shots app, not the admin panel.');
+        }
       },
       logout: async () => {
-        if (demoSession) {
-          try { localStorage.removeItem(DEMO_KEY); } catch { /* ignore */ }
-          setDemoSession(null);
-          return;
-        }
-        await supabase.auth.signOut();
+        if (session?.businessId === 'munchies') await supabaseMunchies.auth.signOut();
+        else await supabase.auth.signOut();
         setSession(null);
       },
     }),
-    [activeSession, demoSession, loading]
+    [session, loading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

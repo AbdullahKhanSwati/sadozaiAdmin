@@ -32,11 +32,11 @@ export const businesses = [
     accent: '#4CAF50',
     accentDark: '#2E7D32',
     available: true,
-    // `demo: true` → signs in against these static credentials (no Supabase).
-    demo: true,
     summary: 'Reports, items, employees, customers',
-    defaultEmail: 'admin@munchies.com',
-    defaultPassword: 'admin123',
+    // Real Supabase auth (Munchies project). Only admin accounts may sign in
+    // here; staff are refused and can use the Munchies app only.
+    defaultEmail: '',
+    defaultPassword: '',
   },
   {
     id: 'sadozai-properties',

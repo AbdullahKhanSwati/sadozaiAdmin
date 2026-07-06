@@ -5,9 +5,9 @@ import {
 } from 'recharts';
 import { ReportToolbar, Panel, ExportBar, ChartSelect, usePagination, TablePagination } from './munchiesUi.jsx';
 import {
-  salesSummary, SUMMARY_METRICS, SUMMARY_CHART_TYPES, GRANULARITY_OPTIONS,
-  summarySeries, dailySalesRows, rs, rsAxis,
+  SUMMARY_METRICS, SUMMARY_CHART_TYPES, GRANULARITY_OPTIONS, rs, rsAxis,
 } from '../../data/munchiesData.js';
+import { useMunchies } from '../../store/MunchiesStore.jsx';
 
 const GREEN = '#7CB342';
 
@@ -22,13 +22,14 @@ function SummaryDelta({ m }) {
 }
 
 export default function SalesSummary() {
+  const { reports } = useMunchies();
   const [metric, setMetric] = useState('grossSales');
   const [chartType, setChartType] = useState('Area');
   const [granularity, setGranularity] = useState('Days');
 
   const active = SUMMARY_METRICS.find((m) => m.key === metric);
-  const data = summarySeries(active.field, granularity);
-  const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(dailySalesRows, 10);
+  const data = reports.summarySeries(active.field, granularity);
+  const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(reports.dailyRows, 10);
 
   return (
     <div className="max-w-[1400px] mx-auto">
@@ -38,7 +39,7 @@ export default function SalesSummary() {
         {/* Metric tabs */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 divide-x divide-slate-100">
           {SUMMARY_METRICS.map((m) => {
-            const d = salesSummary[m.key];
+            const d = reports.summary[m.key];
             const on = metric === m.key;
             return (
               <button

@@ -1,21 +1,57 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ArrowUp, Trash2 } from 'lucide-react';
+import { Search, ArrowUp, ArrowDown, Trash2 } from 'lucide-react';
 import { Card, PrimaryBtn, TextBtn, CheckBox } from './catalogUi.jsx';
 import { Panel, usePagination, TablePagination } from './munchiesUi.jsx';
 import { useMunchies } from '../../store/MunchiesStore.jsx';
 import { rs } from '../../data/munchiesData.js';
+import { downloadCsv, parseCsv, csvDate } from '../../lib/csv.js';
 
 export default function ItemList() {
   const navigate = useNavigate();
-  const { items, categories, categoryName, deleteItems } = useMunchies();
+  const { items, categories, categoryName, saveItem, deleteItems } = useMunchies();
   const [cat, setCat] = useState('all');
   const [q, setQ] = useState('');
   const [selected, setSelected] = useState([]);
+  const [sortDir, setSortDir] = useState('asc');
+  const fileRef = useRef(null);
+
+  const catByName = (name) => categories.find((c) => c.name.toLowerCase() === (name || '').toLowerCase());
 
   const filtered = items
     .filter((i) => (cat === 'all' ? true : i.categoryId === cat))
-    .filter((i) => `${i.code} ${i.name}`.toLowerCase().includes(q.toLowerCase()));
+    .filter((i) => `${i.code} ${i.name}`.toLowerCase().includes(q.toLowerCase()))
+    .sort((a, b) => {
+      const cmp = `${a.name}`.localeCompare(`${b.name}`, undefined, { numeric: true });
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+
+  const onExport = () => downloadCsv(`munchies-items-${csvDate()}.csv`,
+    [
+      { label: 'Code', value: 'code' }, { label: 'Name', value: 'name' },
+      { label: 'Category', value: (r) => categoryName(r.categoryId) },
+      { label: 'Price', value: 'price' }, { label: 'Cost', value: 'cost' },
+      { label: 'SKU', value: 'sku' }, { label: 'Barcode', value: 'barcode' },
+    ], items);
+
+  const onImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const rows = parseCsv(await file.text());
+    for (const r of rows) {
+      const name = r.Name || r.name;
+      if (!name) continue;
+      await saveItem({
+        code: r.Code || r.code || '', name,
+        categoryId: catByName(r.Category || r.category)?.id || '',
+        price: Number(r.Price || r.price) || 0, cost: Number(r.Cost || r.cost) || 0,
+        sku: r.SKU || r.sku || '', barcode: r.Barcode || r.barcode || '',
+        availableForSale: true, soldBy: 'Each', modifiers: [], variants: [],
+        color: '#BDBDBD', shape: 'square',
+      });
+    }
+    e.target.value = '';
+  };
 
   const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(filtered, 10);
 
@@ -32,11 +68,15 @@ export default function ItemList() {
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-4 p-5">
           <PrimaryBtn onClick={() => navigate('/munchies/items/new')}>+ Add item</PrimaryBtn>
-          <TextBtn>Import</TextBtn>
-          <TextBtn>Export</TextBtn>
+          <TextBtn onClick={() => fileRef.current?.click()}>Import</TextBtn>
+          <TextBtn onClick={onExport}>Export</TextBtn>
+          <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={onImport} />
           {selected.length > 0 && (
             <button
-              onClick={() => { deleteItems(selected); setSelected([]); }}
+              onClick={async () => {
+                if (!window.confirm(`Delete ${selected.length} item(s)?`)) return;
+                try { await deleteItems(selected); setSelected([]); } catch (e) { window.alert(e?.message || 'Delete failed.'); }
+              }}
               className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-rose-500 hover:text-rose-600"
             >
               <Trash2 className="w-4 h-4" /> Delete ({selected.length})
@@ -75,7 +115,10 @@ export default function ItemList() {
               <tr className="text-ink-500">
                 <th className="px-5 py-3 w-10"><CheckBox checked={allChecked} onChange={toggleAll} /></th>
                 <th className="text-left font-medium px-2 py-3">
-                  <span className="inline-flex items-center gap-1">Item name <ArrowUp className="w-3.5 h-3.5 text-mun-600" /></span>
+                  <button onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))} className="inline-flex items-center gap-1 hover:text-ink-700">
+                    Item name
+                    {sortDir === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-mun-600" /> : <ArrowDown className="w-3.5 h-3.5 text-mun-600" />}
+                  </button>
                 </th>
                 <th className="text-left font-medium px-5 py-3">Category</th>
                 <th className="text-right font-medium px-5 py-3">Price</th>

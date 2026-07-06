@@ -16,10 +16,18 @@ export default function RoleForm() {
   const [access, setAccess] = useState(existing?.access || 'pos');
   const [color, setColor] = useState(existing?.color || ROLE_COLORS[0]);
 
-  const onSave = () => {
+  const onSave = async () => {
     if (!name.trim()) return;
-    saveRole({ id: existing?.id, name: name.trim(), access, color, system: existing?.system || false });
-    navigate('/munchies/employees/access');
+    try {
+      await saveRole({ id: existing?.id, name: name.trim(), access, color, system: existing?.system || false });
+      navigate('/munchies/employees/access');
+    } catch (e) { window.alert(e?.message || 'Could not save the role.'); }
+  };
+
+  const onDelete = async () => {
+    if (!window.confirm('Delete this role?')) return;
+    try { await deleteRole(existing.id); navigate('/munchies/employees/access'); }
+    catch (e) { window.alert(e?.message || 'Could not delete the role.'); }
   };
 
   return (
@@ -65,7 +73,7 @@ export default function RoleForm() {
 
       <div className="flex items-center justify-between mt-4 px-2">
         {existing && !existing.system ? (
-          <button onClick={() => { deleteRole(existing.id); navigate('/munchies/employees/access'); }} className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-rose-500 hover:text-rose-600">
+          <button onClick={onDelete} className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-rose-500 hover:text-rose-600">
             <Trash2 className="w-4 h-4" /> Delete
           </button>
         ) : <span />}

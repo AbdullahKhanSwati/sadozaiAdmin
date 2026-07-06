@@ -25,7 +25,7 @@ export default function ItemDiscounts() {
         <div className="flex items-center gap-4 p-5">
           <PrimaryBtn onClick={() => navigate('/munchies/items/discounts/new')}>+ Add discount</PrimaryBtn>
           {selected.length > 0 && (
-            <button onClick={() => { deleteDiscounts(selected); setSelected([]); }} className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-rose-500 hover:text-rose-600">
+            <button onClick={async () => { if (!window.confirm(`Delete ${selected.length} discount(s)?`)) return; try { await deleteDiscounts(selected); setSelected([]); } catch (e) { window.alert(e?.message || 'Delete failed.'); } }} className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-rose-500 hover:text-rose-600">
               <Trash2 className="w-4 h-4" /> Delete ({selected.length})
             </button>
           )}

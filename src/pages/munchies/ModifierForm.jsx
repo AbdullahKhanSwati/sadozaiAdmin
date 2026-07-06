@@ -17,11 +17,19 @@ export default function ModifierForm() {
   const addOpt = () => setOptions((os) => [...os, { name: '', price: 0 }]);
   const delOpt = (i) => setOptions((os) => os.filter((_, idx) => idx !== i));
 
-  const onSave = () => {
+  const onSave = async () => {
     if (!name.trim()) return;
     const clean = options.filter((o) => o.name.trim()).map((o) => ({ name: o.name.trim(), price: Number(o.price) || 0 }));
-    saveModifier({ id: existing?.id, name: name.trim(), options: clean });
-    navigate('/munchies/items/modifiers');
+    try {
+      await saveModifier({ id: existing?.id, name: name.trim(), options: clean });
+      navigate('/munchies/items/modifiers');
+    } catch (e) { window.alert(e?.message || 'Could not save the modifier.'); }
+  };
+
+  const onDelete = async () => {
+    if (!window.confirm('Delete this modifier?')) return;
+    try { await deleteModifier(existing.id); navigate('/munchies/items/modifiers'); }
+    catch (e) { window.alert(e?.message || 'Could not delete the modifier.'); }
   };
 
   return (
@@ -61,7 +69,7 @@ export default function ModifierForm() {
 
       <div className="flex items-center justify-between mt-4 px-2">
         {existing ? (
-          <button onClick={() => { deleteModifier(existing.id); navigate('/munchies/items/modifiers'); }} className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-rose-500 hover:text-rose-600">
+          <button onClick={onDelete} className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-rose-500 hover:text-rose-600">
             <Trash2 className="w-4 h-4" /> Delete
           </button>
         ) : <span />}

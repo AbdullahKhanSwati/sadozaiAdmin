@@ -44,7 +44,7 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, selectedId);
       // HomeRedirect routes to the correct admin (Shots or Munchies) once the
       // session's business resolves.
       navigate('/', { replace: true });
@@ -263,7 +263,7 @@ export default function Login() {
                 )}
               </button>
 
-              {selected.available && (
+              {selected.available && selected.defaultEmail && (
                 <div className="text-[11px] text-ink-400 text-center">
                   Demo creds:&nbsp;
                   <span className="font-mono text-ink-600">{selected.defaultEmail}</span> /{' '}

@@ -9,15 +9,16 @@ import { useAuth } from '../context/AuthContext.jsx';
 // ---- Nav model -----------------------------------------------------------
 const B = '/munchies';
 
+// `hidden: true` keeps the route working but drops it from the menu.
 const REPORT_CHILDREN = [
-  { to: `${B}/reports/sales-summary`,  label: 'Sales summary' },
-  { to: `${B}/reports/sales-by-item`,  label: 'Sales by item' },
-  { to: `${B}/reports/sales-by-category`, label: 'Sales by category' },
-  { to: `${B}/reports/sales-by-employee`, label: 'Sales by employee' },
-  { to: `${B}/reports/receipts`,       label: 'Receipts' },
-  { to: `${B}/reports/sales-by-modifier`, label: 'Sales by modifier' },
-  { to: `${B}/reports/discounts`,      label: 'Discounts' },
-  { to: `${B}/reports/taxes`,          label: 'Taxes' },
+  { to: `${B}/reports/sales-summary`,      label: 'Sales summary' },
+  { to: `${B}/reports/sales-by-item`,      label: 'Sales by item',     hidden: true },
+  { to: `${B}/reports/sales-by-category`,  label: 'Sales by category', hidden: true },
+  { to: `${B}/reports/sales-by-employee`,  label: 'Sales by employee', hidden: true },
+  { to: `${B}/reports/receipts`,           label: 'Receipts' },
+  { to: `${B}/reports/sales-by-modifier`,  label: 'Sales by modifier', hidden: true },
+  { to: `${B}/reports/discounts`,          label: 'Discounts' },
+  { to: `${B}/reports/taxes`,              label: 'Taxes',             hidden: true },
 ];
 
 const ITEM_CHILDREN = [
@@ -40,10 +41,11 @@ const NAV = [
   { id: 'settings',  label: 'Settings',  icon: SettingsIcon,   color: '#607D8B', to: `${B}/settings` },
 ];
 
+const visibleChildren = (item) => item.children.filter((c) => !c.hidden);
+
 // Human page title from the current path (used in the green header).
 function titleFor(pathname) {
   if (pathname.startsWith(`${B}/account`)) return 'Account';
-  // Item create/edit sub-routes.
   if (pathname.startsWith(`${B}/items/new`)) return 'Create item';
   if (pathname.startsWith(`${B}/items/categories/new`)) return 'Create category';
   if (pathname.startsWith(`${B}/items/categories/`)) return 'Edit category';
@@ -53,17 +55,14 @@ function titleFor(pathname) {
   if (pathname.startsWith(`${B}/items/discounts/`)) return 'Edit discount';
   if (pathname.startsWith(`${B}/items/list`)) return 'Item list';
   if (/\/items\/[^/]+$/.test(pathname) && !pathname.endsWith('/list')) {
-    // /items/<id> that isn't a known sub-list → edit item
     const tail = pathname.split('/').pop();
     if (!['categories', 'modifiers', 'discounts'].includes(tail)) return 'Edit item';
   }
 
-  // Customers.
   if (pathname.startsWith(`${B}/customers/new`)) return 'Create customer';
   if (/\/customers\/[^/]+$/.test(pathname)) return 'Edit customer';
   if (pathname.startsWith(`${B}/customers`)) return 'Customer base';
 
-  // Employees create/edit sub-routes.
   if (pathname.startsWith(`${B}/employees/new`)) return 'Create employee';
   if (pathname.startsWith(`${B}/employees/access/new`)) return 'Create role';
   if (pathname.startsWith(`${B}/employees/access/`)) return 'Edit role';
@@ -72,6 +71,7 @@ function titleFor(pathname) {
     const tail = pathname.split('/').pop();
     if (!['access', 'list'].includes(tail)) return 'Edit employee';
   }
+
   for (const group of NAV.filter((n) => n.children)) {
     const child = group.children.find((c) => pathname.startsWith(c.to));
     if (child) return child.label;
@@ -85,38 +85,60 @@ export default function MunchiesLayout() {
   const { session, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [expanded, setExpanded] = useState(false); // icons-only by default
-  const [openId, setOpenId] = useState('reports'); // which accordion group is open
-  const [flyoutId, setFlyoutId] = useState(null);   // which group flyout is open (collapsed rail)
+  const [expanded, setExpanded] = useState(false); // desktop rail
+  const [mobileOpen, setMobileOpen] = useState(false); // mobile drawer
+  const [openId, setOpenId] = useState('reports');
+  const [flyoutId, setFlyoutId] = useState(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)');
+    const on = () => setIsMobile(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
+
+  const toggleMenu = () => (isMobile ? setMobileOpen((s) => !s) : setExpanded((s) => !s));
 
   const handleLogout = async () => {
     await logout();
     navigate('/login', { replace: true });
   };
 
+  const sidebarProps = {
+    openId, setOpenId, flyoutId, setFlyoutId,
+    pathname: location.pathname, session, onLogout: handleLogout,
+    onNavigate: () => setMobileOpen(false),
+  };
+
   return (
     <div className="h-screen flex flex-col bg-slate-100 text-ink-800">
       {/* Full-width green header, above the sidebar */}
-      <header className="h-14 bg-mun-600 text-white flex items-center px-4 gap-3 shadow-md shrink-0 z-30">
-        <button onClick={() => setExpanded((s) => !s)} className="p-2 -ml-2 rounded hover:bg-white/15 transition" aria-label="Toggle menu">
+      <header className="h-14 bg-mun-600 text-white flex items-center px-3 sm:px-4 gap-2 sm:gap-3 shadow-md shrink-0 z-30">
+        <button onClick={toggleMenu} className="p-2 -ml-1 rounded hover:bg-white/15 transition" aria-label="Toggle menu">
           <Menu className="w-6 h-6" />
         </button>
-        <h1 className="text-xl font-medium tracking-wide">{titleFor(location.pathname)}</h1>
+        <h1 className="text-lg sm:text-xl font-medium tracking-wide truncate">{titleFor(location.pathname)}</h1>
       </header>
 
       {/* Row: sidebar + content */}
-      <div className="flex flex-1 min-h-0">
-        <Sidebar
-          expanded={expanded}
-          openId={openId}
-          setOpenId={setOpenId}
-          flyoutId={flyoutId}
-          setFlyoutId={setFlyoutId}
-          pathname={location.pathname}
-          session={session}
-          onLogout={handleLogout}
-        />
-        <main className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 animate-fade-in">
+      <div className="flex flex-1 min-h-0 relative">
+        {/* Desktop rail */}
+        <Sidebar variant="desktop" expanded={expanded} {...sidebarProps} />
+
+        {/* Mobile drawer */}
+        {mobileOpen && (
+          <div className="lg:hidden">
+            <div className="fixed inset-0 top-14 bg-black/40 z-40 animate-fade-in" onClick={() => setMobileOpen(false)} />
+            <Sidebar variant="mobile" expanded {...sidebarProps} />
+          </div>
+        )}
+
+        <main className="flex-1 min-w-0 overflow-y-auto p-3 sm:p-5 lg:p-6 animate-fade-in">
           <Outlet />
         </main>
       </div>
@@ -125,10 +147,11 @@ export default function MunchiesLayout() {
 }
 
 // ---- Sidebar -------------------------------------------------------------
-function Sidebar({ expanded, openId, setOpenId, flyoutId, setFlyoutId, pathname, session, onLogout }) {
+function Sidebar({ variant, expanded, openId, setOpenId, flyoutId, setFlyoutId, pathname, session, onLogout, onNavigate }) {
   const flyoutRef = useRef(null);
   const navigate = useNavigate();
   const [profileOpen, setProfileOpen] = useState(false);
+  const mobile = variant === 'mobile';
 
   useEffect(() => {
     if (!flyoutId) return;
@@ -141,8 +164,14 @@ function Sidebar({ expanded, openId, setOpenId, flyoutId, setFlyoutId, pathname,
 
   const email = session?.email || 'munchiesdoberan@gmail.com';
 
+  const asideClass = mobile
+    ? 'lg:hidden fixed left-0 top-14 bottom-0 z-50 w-[264px] flex flex-col bg-white border-r border-slate-200 shadow-2xl animate-slide-up'
+    : ['hidden lg:flex relative bg-white border-r border-slate-200 shrink-0 transition-all duration-200 flex-col', expanded ? 'w-[248px]' : 'w-[64px]'].join(' ');
+
+  const closeAndGo = (fn) => { fn(); onNavigate?.(); };
+
   return (
-    <aside className={['relative bg-white border-r border-slate-200 shrink-0 transition-all duration-200 flex flex-col', expanded ? 'w-[248px]' : 'w-[64px]'].join(' ')}>
+    <aside className={asideClass}>
       {/* Owner / profile — opens Account / Sign out menu */}
       <div className="relative border-b border-slate-100">
         {profileOpen && <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />}
@@ -164,7 +193,7 @@ function Sidebar({ expanded, openId, setOpenId, flyoutId, setFlyoutId, pathname,
 
         {profileOpen && (
           <div className={['absolute z-50 bg-white rounded-md border border-slate-200 shadow-pop py-1 w-44 animate-fade-in', expanded ? 'left-4 top-[60px]' : 'left-full top-2 ml-1'].join(' ')}>
-            <button onClick={() => { setProfileOpen(false); navigate('/munchies/account'); }} className="block w-full text-left px-4 py-2.5 text-sm text-ink-700 hover:bg-slate-50">
+            <button onClick={() => { setProfileOpen(false); closeAndGo(() => navigate('/munchies/account')); }} className="block w-full text-left px-4 py-2.5 text-sm text-ink-700 hover:bg-slate-50">
               Account
             </button>
             <button onClick={() => { setProfileOpen(false); onLogout(); }} className="block w-full text-left px-4 py-2.5 text-sm text-ink-700 hover:bg-slate-50">
@@ -175,7 +204,7 @@ function Sidebar({ expanded, openId, setOpenId, flyoutId, setFlyoutId, pathname,
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 py-2 overflow-visible">
+      <nav className="flex-1 py-2 overflow-y-auto lg:overflow-visible">
         {NAV.map((item) =>
           item.children ? (
             <GroupItem
@@ -188,9 +217,10 @@ function Sidebar({ expanded, openId, setOpenId, flyoutId, setFlyoutId, pathname,
               flyoutOpen={flyoutId === item.id}
               setFlyout={(v) => setFlyoutId(v ? item.id : null)}
               flyoutRef={flyoutId === item.id ? flyoutRef : null}
+              onNavigate={onNavigate}
             />
           ) : (
-            <LeafItem key={item.id} item={item} expanded={expanded} />
+            <LeafItem key={item.id} item={item} expanded={expanded} onNavigate={onNavigate} />
           )
         )}
       </nav>
@@ -204,12 +234,13 @@ function Sidebar({ expanded, openId, setOpenId, flyoutId, setFlyoutId, pathname,
   );
 }
 
-function LeafItem({ item, expanded }) {
+function LeafItem({ item, expanded, onNavigate }) {
   const Icon = item.icon;
   return (
     <NavLink
       to={item.to}
       title={item.label}
+      onClick={onNavigate}
       className={({ isActive }) =>
         [
           'flex items-center gap-4 h-12 text-sm font-medium transition relative',
@@ -230,8 +261,9 @@ function LeafItem({ item, expanded }) {
 }
 
 // Expandable group — accordion when the rail is expanded, flyout when collapsed.
-function GroupItem({ item, expanded, open, setOpen, active, flyoutOpen, setFlyout, flyoutRef }) {
+function GroupItem({ item, expanded, open, setOpen, active, flyoutOpen, setFlyout, flyoutRef, onNavigate }) {
   const Icon = item.icon;
+  const children = visibleChildren(item);
   const rowBase = 'flex items-center gap-4 h-12 text-sm font-medium transition relative w-full cursor-pointer';
   const rowTone = active ? 'text-mun-700 bg-mun-50 font-semibold' : 'text-ink-600 hover:bg-slate-50';
 
@@ -255,10 +287,11 @@ function GroupItem({ item, expanded, open, setOpen, active, flyoutOpen, setFlyou
       {/* Expanded → inline accordion */}
       {expanded && open && (
         <div className="pb-1">
-          {item.children.map((c) => (
+          {children.map((c) => (
             <NavLink
               key={c.to}
               to={c.to}
+              onClick={onNavigate}
               className={({ isActive }) =>
                 ['block pl-14 pr-4 py-2 text-[13px] transition', isActive ? 'text-mun-700 font-semibold bg-mun-50' : 'text-ink-500 hover:bg-slate-50'].join(' ')
               }
@@ -273,11 +306,11 @@ function GroupItem({ item, expanded, open, setOpen, active, flyoutOpen, setFlyou
       {!expanded && flyoutOpen && (
         <div ref={flyoutRef} className="absolute left-full top-0 ml-1 w-56 bg-white rounded-md border border-slate-200 shadow-pop z-50 py-1 animate-fade-in">
           <div className="px-4 py-2 text-[11px] uppercase tracking-widest text-ink-400 font-bold border-b border-slate-100">{item.label}</div>
-          {item.children.map((c) => (
+          {children.map((c) => (
             <NavLink
               key={c.to}
               to={c.to}
-              onClick={() => setFlyout(false)}
+              onClick={() => { setFlyout(false); onNavigate?.(); }}
               className={({ isActive }) =>
                 ['block px-4 py-2.5 text-sm transition', isActive ? 'text-mun-700 font-semibold bg-mun-50' : 'text-ink-600 hover:bg-slate-50'].join(' ')
               }
