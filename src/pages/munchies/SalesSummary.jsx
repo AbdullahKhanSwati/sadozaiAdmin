@@ -37,7 +37,7 @@ export default function SalesSummary() {
 
       <Panel className="mb-4">
         {/* Metric tabs */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 divide-x divide-slate-100">
+        <div className="grid grid-cols-1 sm:grid-cols-3 divide-x divide-slate-100">
           {SUMMARY_METRICS.map((m) => {
             const d = reports.summary[m.key];
             const on = metric === m.key;
@@ -84,9 +84,7 @@ export default function SalesSummary() {
               <tr className="text-ink-500">
                 <th className="text-left font-medium px-5 py-3">Date</th>
                 <th className="text-right font-medium px-5 py-3">Gross sales</th>
-                <th className="text-right font-medium px-5 py-3">Refunds</th>
                 <th className="text-right font-medium px-5 py-3">Discounts</th>
-                <th className="text-right font-medium px-5 py-3">Net sales</th>
                 <th className="text-right font-medium px-5 py-3">Cost of goods</th>
                 <th className="text-right font-medium px-5 py-3">Gross profit</th>
               </tr>
@@ -96,9 +94,7 @@ export default function SalesSummary() {
                 <tr key={r.date} className="border-t border-slate-100 hover:bg-slate-50/60">
                   <td className="px-5 py-3.5 text-ink-700">{r.label} 2026</td>
                   <td className="px-5 py-3.5 text-right text-ink-700">{rs(r.gross)}</td>
-                  <td className="px-5 py-3.5 text-right text-ink-500">{rs(r.refunds)}</td>
                   <td className="px-5 py-3.5 text-right text-ink-700">{rs(r.discount)}</td>
-                  <td className="px-5 py-3.5 text-right text-ink-700">{rs(r.net)}</td>
                   <td className="px-5 py-3.5 text-right text-ink-500">{rs(r.cost)}</td>
                   <td className="px-5 py-3.5 text-right font-semibold text-ink-800">{rs(r.grossProfit)}</td>
                 </tr>

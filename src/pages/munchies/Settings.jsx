@@ -151,9 +151,6 @@ function DiningSettings() {
         {dining.map((d, i) => (
           <li key={i} className="flex items-center gap-4 py-4">
             <input value={d.name} onChange={(e) => upd(i, { name: e.target.value })} className="flex-1 border-b border-slate-200 bg-transparent py-1 text-ink-800 focus:outline-none focus:border-mun-500" />
-            {'charge' in d && (
-              <input value={d.charge ?? ''} onChange={(e) => upd(i, { charge: Number(e.target.value) || 0 })} placeholder="Charge" className="w-24 border-b border-slate-200 bg-transparent py-1 text-ink-700 text-right focus:outline-none focus:border-mun-500" inputMode="numeric" />
-            )}
             <Toggle on={!!d.enabled} onChange={(v) => upd(i, { enabled: v })} />
             <button onClick={() => del(i)} className="text-slate-400 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
           </li>

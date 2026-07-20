@@ -47,6 +47,15 @@ function RequireAuth({ children }) {
   return children;
 }
 
+// Keep signed-in users out of the login page — if a persisted session exists,
+// send them straight to their dashboard instead of showing the form again.
+function RedirectIfAuthed({ children }) {
+  const { session, loading } = useAuth();
+  if (loading) return null; // wait for the async session refresh before deciding
+  if (session) return <Navigate to="/" replace />;
+  return children;
+}
+
 // Land the user on the right admin after login based on their business.
 function HomeRedirect() {
   const { session, loading } = useAuth();
@@ -59,7 +68,7 @@ function HomeRedirect() {
 function Shell() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route path="/login" element={<RedirectIfAuthed><Login /></RedirectIfAuthed>} />
       <Route path="/" element={<HomeRedirect />} />
 
       {/* Shots admin */}

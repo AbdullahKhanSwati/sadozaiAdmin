@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Trash2, Receipt } from 'lucide-react';
 import { Card, Field, PrimaryBtn, GhostBtn, underline } from './catalogUi.jsx';
 import { useMunchies } from '../../store/MunchiesStore.jsx';
 import { COUNTRIES } from '../../data/munchiesCatalog.js';
 import { rs } from '../../data/munchiesData.js';
+import { EditGate } from './formGate.jsx';
 
 export default function CustomerForm() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { customers, saveCustomer, deleteCustomer, reports } = useMunchies();
+  const { customers, saveCustomer, deleteCustomer, reports, ready } = useMunchies();
 
   const existing = customers.find((c) => c.id === id);
   const purchases = existing ? reports.receiptRows.filter((r) => r.customerId === existing.id) : [];
@@ -21,6 +22,10 @@ export default function CustomerForm() {
     }
   );
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+
+  useEffect(() => { if (existing) setForm(existing); }, [existing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (id && !existing) return <EditGate id={id} existing={existing} ready={ready} />;
 
   const onSave = async () => {
     if (!form.name.trim() && !form.phone.trim() && !form.email.trim()) return;

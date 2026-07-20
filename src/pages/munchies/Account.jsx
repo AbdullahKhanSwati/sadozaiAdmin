@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pencil } from 'lucide-react';
 import { Card, Field, Toggle, PrimaryBtn, GhostBtn, underline } from './catalogUi.jsx';
@@ -40,6 +40,22 @@ export default function Account() {
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
+  // Hydrate once settings arrive from the DB (async), unless the user has
+  // already started editing.
+  const dirty = useRef(false);
+  useEffect(() => {
+    if (settings && !dirty.current) {
+      setForm({
+        businessName: settings.businessName || 'Munchies',
+        currency: settings.currency || 'Pakistani Rupee (PKR)',
+        usePaise: settings.usePaise ?? true,
+        timezone: settings.timezone || '(UTC+05:00) Islamabad, Karachi',
+      });
+    }
+  }, [settings]);
+
+  const setDirty = (patch) => { dirty.current = true; set(patch); };
+
   const onSave = async () => {
     setSaving(true);
     setMsg('');
@@ -76,7 +92,7 @@ export default function Account() {
     <div className="max-w-[720px] mx-auto pb-24">
       <Card className="px-6 sm:px-8 pt-6">
         <Field label="Business name">
-          <input value={form.businessName} onChange={(e) => set({ businessName: e.target.value })} className={underline} />
+          <input value={form.businessName} onChange={(e) => setDirty({ businessName: e.target.value })} className={underline} />
         </Field>
 
         <div className="mt-8">
@@ -105,7 +121,7 @@ export default function Account() {
 
         <div className="mt-8">
           <Field label="Currency">
-            <select value={form.currency} onChange={(e) => set({ currency: e.target.value })} className={underline}>
+            <select value={form.currency} onChange={(e) => setDirty({ currency: e.target.value })} className={underline}>
               {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </Field>
@@ -113,12 +129,12 @@ export default function Account() {
 
         <div className="mt-6 flex items-center justify-between py-2">
           <span className="text-ink-800">Use paise</span>
-          <Toggle on={form.usePaise} onChange={(v) => set({ usePaise: v })} />
+          <Toggle on={form.usePaise} onChange={(v) => setDirty({ usePaise: v })} />
         </div>
 
         <div className="mt-4">
           <Field label="Timezone">
-            <select value={form.timezone} onChange={(e) => set({ timezone: e.target.value })} className={underline}>
+            <select value={form.timezone} onChange={(e) => setDirty({ timezone: e.target.value })} className={underline}>
               {TIMEZONES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </Field>

@@ -1,17 +1,26 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import { Card, ColorPicker, TextBtn, underline } from './catalogUi.jsx';
 import { useMunchies } from '../../store/MunchiesStore.jsx';
+import { EditGate } from './formGate.jsx';
 
 export default function CategoryForm() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { categories, saveCategory, deleteCategory } = useMunchies();
+  const { categories, saveCategory, deleteCategory, ready } = useMunchies();
 
   const existing = categories.find((c) => c.id === id);
   const [name, setName] = useState(existing?.name || '');
   const [color, setColor] = useState(existing?.color || '#BDBDBD');
+
+  // Hydrate when the record loads (deep-link / hard refresh onto this page).
+  useEffect(() => {
+    if (existing) { setName(existing.name || ''); setColor(existing.color || '#BDBDBD'); }
+  }, [existing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const gate = <EditGate id={id} existing={existing} ready={ready} />;
+  if (id && !existing) return gate;
 
   const onSave = async () => {
     if (!name.trim()) return;

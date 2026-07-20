@@ -1,20 +1,27 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Users, Trash2 } from 'lucide-react';
 import { Card, Field, Radio, PrimaryBtn, GhostBtn, underline } from './catalogUi.jsx';
 import { useMunchies } from '../../store/MunchiesStore.jsx';
+import { EditGate } from './formGate.jsx';
 
 const ROLE_COLORS = ['#FB8C00', '#8E24AA', '#1E88E5', '#00897B', '#E53935', '#43A047'];
 
 export default function RoleForm() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { roles, saveRole, deleteRole } = useMunchies();
+  const { roles, saveRole, deleteRole, ready } = useMunchies();
 
   const existing = roles.find((r) => r.id === id);
   const [name, setName] = useState(existing?.name || '');
   const [access, setAccess] = useState(existing?.access || 'pos');
   const [color, setColor] = useState(existing?.color || ROLE_COLORS[0]);
+
+  useEffect(() => {
+    if (existing) { setName(existing.name || ''); setAccess(existing.access || 'pos'); setColor(existing.color || ROLE_COLORS[0]); }
+  }, [existing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (id && !existing) return <EditGate id={id} existing={existing} ready={ready} />;
 
   const onSave = async () => {
     if (!name.trim()) return;

@@ -153,7 +153,7 @@ export function MunchiesProvider({ children }) {
   const saveSettings = useCallback(async (patch) => {
     setSettings((s) => ({ ...(s || {}), ...patch }));
     const row = { id: 1, ...toRow(patch, SETTINGS_KEYS), updated_at: new Date().toISOString() };
-    const { error } = await sb.from('business_settings').upsert(row).eq('id', 1);
+    const { error } = await sb.from('business_settings').upsert(row, { onConflict: 'id' });
     if (error) console.error('saveSettings', error);
   }, []);
 

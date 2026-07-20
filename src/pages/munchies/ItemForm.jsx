@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, Image as ImageIcon, Trash2, Loader2 } from 'lucide-react';
 import {
@@ -6,11 +6,12 @@ import {
 } from './catalogUi.jsx';
 import { useMunchies } from '../../store/MunchiesStore.jsx';
 import { uploadItemImage } from '../../lib/supabaseMunchies.js';
+import { EditGate } from './formGate.jsx';
 
 export default function ItemForm() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { items, categories, modifiers, saveItem, deleteItem } = useMunchies();
+  const { items, categories, modifiers, saveItem, deleteItem, ready } = useMunchies();
 
   const existing = items.find((i) => i.id === id);
   const [form, setForm] = useState(() =>
@@ -24,6 +25,12 @@ export default function ItemForm() {
   const [rep, setRep] = useState(existing?.image ? 'image' : 'color');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (existing) { setForm(existing); setRep(existing.image ? 'image' : 'color'); }
+  }, [existing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (id && !existing) return <EditGate id={id} existing={existing} ready={ready} />;
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
   const toggleMod = (mid) =>

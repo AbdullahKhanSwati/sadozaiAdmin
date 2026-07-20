@@ -1,19 +1,29 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import { Card, Field, Radio, PrimaryBtn, GhostBtn, underline } from './catalogUi.jsx';
 import { useMunchies } from '../../store/MunchiesStore.jsx';
+import { EditGate } from './formGate.jsx';
 
 export default function DiscountForm() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { discounts, saveDiscount, deleteDiscount } = useMunchies();
+  const { discounts, saveDiscount, deleteDiscount, ready } = useMunchies();
 
   const existing = discounts.find((d) => d.id === id);
   const [name, setName] = useState(existing?.name || '');
   const [type, setType] = useState(existing?.type || 'percent');
   const [variable, setVariable] = useState(existing ? existing.value == null : false);
   const [value, setValue] = useState(existing?.value ?? '');
+
+  useEffect(() => {
+    if (existing) {
+      setName(existing.name || ''); setType(existing.type || 'percent');
+      setVariable(existing.value == null); setValue(existing.value ?? '');
+    }
+  }, [existing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (id && !existing) return <EditGate id={id} existing={existing} ready={ready} />;
 
   const onSave = async () => {
     if (!name.trim()) return;

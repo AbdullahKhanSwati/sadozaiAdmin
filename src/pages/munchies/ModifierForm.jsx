@@ -1,17 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { FileCheck2, GripVertical, Trash2, Plus } from 'lucide-react';
 import { Card, PrimaryBtn, GhostBtn, underline } from './catalogUi.jsx';
 import { useMunchies } from '../../store/MunchiesStore.jsx';
+import { EditGate } from './formGate.jsx';
 
 export default function ModifierForm() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { modifiers, saveModifier, deleteModifier } = useMunchies();
+  const { modifiers, saveModifier, deleteModifier, ready } = useMunchies();
 
   const existing = modifiers.find((m) => m.id === id);
   const [name, setName] = useState(existing?.name || '');
   const [options, setOptions] = useState(existing?.options?.length ? existing.options : [{ name: '', price: 0 }]);
+
+  useEffect(() => {
+    if (existing) { setName(existing.name || ''); setOptions(existing.options?.length ? existing.options : [{ name: '', price: 0 }]); }
+  }, [existing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (id && !existing) return <EditGate id={id} existing={existing} ready={ready} />;
 
   const setOpt = (i, patch) => setOptions((os) => os.map((o, idx) => (idx === i ? { ...o, ...patch } : o)));
   const addOpt = () => setOptions((os) => [...os, { name: '', price: 0 }]);

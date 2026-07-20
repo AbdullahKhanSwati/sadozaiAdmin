@@ -395,10 +395,17 @@ alter table public.business_settings add column if not exists dining   jsonb not
 alter table public.business_settings add column if not exists printers jsonb not null default '[]'::jsonb;
 alter table public.receipts add column if not exists discount_name text;
 
--- Default dining options + receipt config for the single settings row.
+-- Default dining options (no charge — just a label to tag each order with).
 update public.business_settings
-   set dining = '[{"name":"Dine in","enabled":true},{"name":"Takeout","enabled":true},{"name":"Delivery","enabled":true,"charge":150}]'::jsonb
+   set dining = '[{"name":"Dine in","enabled":true},{"name":"Takeout","enabled":true},{"name":"Delivery","enabled":true}]'::jsonb
  where id = 1 and (dining is null or dining = '[]'::jsonb);
+
+-- Drop any previously-stored "charge" on dining options.
+update public.business_settings
+   set dining = (
+     select coalesce(jsonb_agg(elem - 'charge'), '[]'::jsonb) from jsonb_array_elements(dining) elem
+   )
+ where id = 1 and dining::text like '%"charge"%';
 update public.business_settings
    set receipt = '{"header":"Munchies","footer":"Thank you for your visit!","showLogo":true,"showComments":true}'::jsonb
  where id = 1 and (receipt is null or receipt = '{}'::jsonb);

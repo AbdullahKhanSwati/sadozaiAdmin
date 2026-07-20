@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Trash2, Eye, EyeOff } from 'lucide-react';
 import { Card, Field, PrimaryBtn, GhostBtn, underline } from './catalogUi.jsx';
 import { useMunchies } from '../../store/MunchiesStore.jsx';
 import { createMunchiesLogin, adminSetStaffPassword, adminSetStaffRole, adminDeleteStaff } from '../../lib/supabaseMunchies.js';
+import { EditGate } from './formGate.jsx';
 
 // Access → login role: 'both' (admin) gets full access, 'pos' is staff (app only).
 const loginRole = (role) => (role?.access === 'both' ? 'admin' : 'staff');
@@ -11,7 +12,7 @@ const loginRole = (role) => (role?.access === 'both' ? 'admin' : 'staff');
 export default function EmployeeForm() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { employees, roles, saveEmployee, deleteEmployee, role } = useMunchies();
+  const { employees, roles, saveEmployee, deleteEmployee, role, ready } = useMunchies();
 
   const existing = employees.find((e) => e.id === id);
   const [form, setForm] = useState(() =>
@@ -21,6 +22,10 @@ export default function EmployeeForm() {
   const [showPass, setShowPass] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => { if (existing) setForm(existing); }, [existing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (id && !existing) return <EditGate id={id} existing={existing} ready={ready} />;
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
   const selectedRole = role(form.roleId);

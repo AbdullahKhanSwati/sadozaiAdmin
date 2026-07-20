@@ -31,12 +31,10 @@ export const salesSummary = {
   grossProfit: { value: 425782, delta: -30740, trend: -6.73, betterWhenUp: true },
 };
 
-// The five summary tabs, in order. `field` maps to the daily-row key charted.
+// The summary tabs, in order. `field` maps to the daily-row key charted.
 export const SUMMARY_METRICS = [
   { key: 'grossSales',  label: 'Gross sales',  field: 'gross' },
-  { key: 'refunds',     label: 'Refunds',      field: 'refunds' },
   { key: 'discounts',   label: 'Discounts',    field: 'discount' },
-  { key: 'netSales',    label: 'Net sales',    field: 'net' },
   { key: 'grossProfit', label: 'Gross profit', field: 'grossProfit' },
 ];
 
