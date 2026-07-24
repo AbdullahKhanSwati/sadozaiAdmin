@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Menu, BarChart3, ShoppingBasket, Contact, Users,
+  Menu, BarChart3, ShoppingBasket, Contact, Users, Boxes,
   Settings as SettingsIcon, HelpCircle, LogOut, ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -38,6 +38,7 @@ const NAV = [
   { id: 'items',     label: 'Items',     icon: ShoppingBasket, color: '#EC407A', base: `${B}/items`,     children: ITEM_CHILDREN },
   { id: 'employees', label: 'Employees', icon: Contact,        color: '#00897B', base: `${B}/employees`, children: EMPLOYEE_CHILDREN },
   { id: 'customers', label: 'Customers', icon: Users,          color: '#3F51B5', to: `${B}/customers` },
+  { id: 'stock',     label: 'Stock',     icon: Boxes,          color: '#F57C00', to: `${B}/stock` },
   { id: 'settings',  label: 'Settings',  icon: SettingsIcon,   color: '#607D8B', to: `${B}/settings` },
 ];
 
