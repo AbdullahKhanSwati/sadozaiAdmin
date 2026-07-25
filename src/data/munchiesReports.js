@@ -28,8 +28,24 @@ export function computeReports({ receipts = [], lines = [], items = [], categori
   const sales = receipts.filter((r) => (r.type || 'Sale') === 'Sale');
   const refunds = receipts.filter((r) => r.type === 'Refund');
 
+  // Per-line discounts (original − final), grouped by receipt and by name, so the
+  // reports capture item-level discounts as well as whole-ticket ones.
+  const lineDiscByReceipt = {};
+  const lineDiscByName = {};
+  lines.forEach((ln) => {
+    const base = ln.base_total != null ? num(ln.base_total) : num(ln.line_total);
+    const d = Math.max(0, base - num(ln.line_total));
+    if (d > 0) {
+      lineDiscByReceipt[ln.receipt_id] = (lineDiscByReceipt[ln.receipt_id] || 0) + d;
+      const nm = ln.discount_name || 'Discount';
+      const cur = lineDiscByName[nm] || { applied: 0, amount: 0 };
+      cur.applied += 1; cur.amount += d;
+      lineDiscByName[nm] = cur;
+    }
+  });
+
   const grossSales = sales.reduce((s, r) => s + num(r.subtotal), 0);
-  const discountsTotal = sales.reduce((s, r) => s + num(r.discount), 0);
+  const discountsTotal = sales.reduce((s, r) => s + num(r.discount) + (lineDiscByReceipt[r.id] || 0), 0);
   const refundsTotal = refunds.reduce((s, r) => s + num(r.total), 0);
   const netSales = grossSales - discountsTotal - refundsTotal;
 
@@ -48,7 +64,7 @@ export function computeReports({ receipts = [], lines = [], items = [], categori
     Object.entries(patch).forEach(([k, v]) => { cur[k] += v; });
     dayMap.set(iso, cur);
   };
-  sales.forEach((r) => bump(isoDate(r.created_at), { gross: num(r.subtotal), discount: num(r.discount) }));
+  sales.forEach((r) => bump(isoDate(r.created_at), { gross: num(r.subtotal), discount: num(r.discount) + (lineDiscByReceipt[r.id] || 0) }));
   refunds.forEach((r) => bump(isoDate(r.created_at), { refunds: num(r.total) }));
   const daily = [...dayMap.values()]
     .sort((a, b) => a.date.localeCompare(b.date))
@@ -139,6 +155,7 @@ export function computeReports({ receipts = [], lines = [], items = [], categori
   const receiptRows = [...receipts]
     .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
     .map((r) => ({
+      id: r.id,
       no: r.number || r.id,
       date: dateTimeLabel(r.created_at),
       employee: empById[r.employee_id]?.name || 'Owner',
@@ -161,20 +178,67 @@ export function computeReports({ receipts = [], lines = [], items = [], categori
   const modifierRows = [...modAgg.values()].sort((a, b) => a.name.localeCompare(b.name));
 
   // ---- Discounts -----------------------------------------------------------
+  // Whole-ticket discounts (receipt.discount) + per-line item discounts, keyed
+  // by discount name.
   const discAgg = new Map();
-  sales.forEach((r) => {
-    if (!r.discount_name || num(r.discount) === 0) return;
-    const cur = discAgg.get(r.discount_name) || { name: r.discount_name, applied: 0, amount: 0 };
-    cur.applied += 1;
-    cur.amount += num(r.discount);
-    discAgg.set(r.discount_name, cur);
-  });
+  const addDisc = (name, applied, amount) => {
+    if (!name || amount === 0) return;
+    const cur = discAgg.get(name) || { name, applied: 0, amount: 0 };
+    cur.applied += applied;
+    cur.amount += amount;
+    discAgg.set(name, cur);
+  };
+  sales.forEach((r) => addDisc(r.discount_name, 1, num(r.discount)));
+  Object.entries(lineDiscByName).forEach(([nm, v]) => addDisc(nm, v.applied, v.amount));
   const discountReportRows = [...discAgg.values()].sort((a, b) => b.amount - a.amount);
+
+  // ---- Per-customer stats (derived from real receipts, not stored columns) --
+  const customerStats = {};
+  sales.forEach((r) => {
+    if (!r.customer_id) return;
+    const cur = customerStats[r.customer_id] || { visits: 0, spent: 0, firstVisit: null, lastVisit: null };
+    cur.visits += 1;
+    cur.spent += num(r.total);
+    const iso = isoDate(r.created_at);
+    if (iso) {
+      if (!cur.firstVisit || iso < cur.firstVisit) cur.firstVisit = iso;
+      if (!cur.lastVisit || iso > cur.lastVisit) cur.lastVisit = iso;
+    }
+    customerStats[r.customer_id] = cur;
+  });
+
+  // ---- Receipt detail lookup (for the clickable receipt modal) -------------
+  const linesByReceipt = {};
+  lines.forEach((ln) => { (linesByReceipt[ln.receipt_id] = linesByReceipt[ln.receipt_id] || []).push(ln); });
+  const receiptById = {};
+  receipts.forEach((r) => {
+    receiptById[r.id] = {
+      id: r.id,
+      no: r.number || r.id,
+      date: dateTimeLabel(r.created_at),
+      employee: empById[r.employee_id]?.name || 'Owner',
+      customer: custById[r.customer_id]?.name || '',
+      dining: r.dining || '',
+      type: r.type || 'Sale',
+      subtotal: num(r.subtotal),
+      discount: num(r.discount),
+      discountName: r.discount_name || '',
+      total: num(r.total),
+      lines: (linesByReceipt[r.id] || []).map((ln) => ({
+        code: ln.code || '', name: ln.name || '', qty: num(ln.qty), unit: num(ln.unit),
+        lineTotal: num(ln.line_total),
+        baseTotal: ln.base_total != null ? num(ln.base_total) : num(ln.line_total),
+        discountName: ln.discount_name || '',
+        mods: Array.isArray(ln.modifiers) ? ln.modifiers : [],
+      })),
+    };
+  });
 
   return {
     summary, daily, dailyRows, summarySeries,
     topItems, itemRows, categoryRows, itemPie, itemSeries,
     employeeRows, receiptStats, receiptRows, modifierRows, discountReportRows,
+    customerStats, receiptById,
     hasData: receipts.length > 0,
   };
 }

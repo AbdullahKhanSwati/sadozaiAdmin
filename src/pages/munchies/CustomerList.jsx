@@ -7,11 +7,19 @@ import { useMunchies } from '../../store/MunchiesStore.jsx';
 import { rs } from '../../data/munchiesData.js';
 import { downloadCsv, parseCsv, csvDate } from '../../lib/csv.js';
 
+const EMPTY_STAT = { visits: 0, spent: 0, firstVisit: null, lastVisit: null };
+const fmtDate = (iso) =>
+  iso ? new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+
 export default function CustomerList() {
   const navigate = useNavigate();
-  const { customers, saveCustomer } = useMunchies();
+  const { customers, saveCustomer, reports } = useMunchies();
   const [q, setQ] = useState('');
   const fileRef = useRef(null);
+
+  // Visits + total spent are derived from real receipts (the stored columns are
+  // not maintained by the app), matching what the mobile app shows.
+  const stat = (c) => reports.customerStats?.[c.id] || EMPTY_STAT;
 
   const onExport = () => downloadCsv(`munchies-customers-${csvDate()}.csv`,
     [
@@ -24,13 +32,11 @@ export default function CustomerList() {
       { label: 'Region', value: 'region' },
       { label: 'Postal code', value: 'postalCode' },
       { label: 'Country', value: 'country' },
-      { label: 'Customer code', value: (c) => c.code || '' },
-      { label: 'Points balance', value: (c) => c.points || 0 },
       { label: 'Note', value: 'note' },
-      { label: 'First visit', value: 'firstVisit' },
-      { label: 'Last visit', value: 'lastVisit' },
-      { label: 'Total visits', value: (c) => c.visits || 0 },
-      { label: 'Total spent', value: (c) => c.spent || 0 },
+      { label: 'First visit', value: (c) => fmtDate(stat(c).firstVisit) },
+      { label: 'Last visit', value: (c) => fmtDate(stat(c).lastVisit) },
+      { label: 'Total visits', value: (c) => stat(c).visits },
+      { label: 'Total spent', value: (c) => stat(c).spent },
     ], customers);
 
   const onImport = async (e) => {
@@ -84,23 +90,24 @@ export default function CustomerList() {
                 <th className="text-left font-medium px-5 py-3">Last visit</th>
                 <th className="text-right font-medium px-5 py-3">Total visits</th>
                 <th className="text-right font-medium px-5 py-3">Total spent</th>
-                <th className="text-right font-medium px-5 py-3">Points balance</th>
               </tr>
             </thead>
             <tbody>
-              {pageItems.map((c) => (
+              {pageItems.map((c) => {
+                const s = stat(c);
+                return (
                 <tr key={c.id} onClick={() => navigate(`/munchies/customers/${c.id}`)} className="border-t border-slate-100 hover:bg-slate-50/60 cursor-pointer">
                   <td className="px-5 py-4 font-bold text-ink-800">{c.name || 'Unknown'}</td>
                   <td className="px-5 py-4 text-ink-600">{c.phone || c.email || '—'}</td>
-                  <td className="px-5 py-4 text-ink-600">{c.firstVisit || '—'}</td>
-                  <td className="px-5 py-4 text-ink-600">{c.lastVisit || '—'}</td>
-                  <td className="px-5 py-4 text-right text-ink-700">{c.visits || 0}</td>
-                  <td className="px-5 py-4 text-right text-ink-700">{rs(c.spent)}</td>
-                  <td className="px-5 py-4 text-right text-ink-700">{(c.points || 0).toFixed(2)}</td>
+                  <td className="px-5 py-4 text-ink-600">{fmtDate(s.firstVisit)}</td>
+                  <td className="px-5 py-4 text-ink-600">{fmtDate(s.lastVisit)}</td>
+                  <td className="px-5 py-4 text-right text-ink-700">{s.visits}</td>
+                  <td className="px-5 py-4 text-right text-ink-700">{rs(s.spent)}</td>
                 </tr>
-              ))}
+                );
+              })}
               {pageItems.length === 0 && (
-                <tr><td colSpan={7} className="px-5 py-10 text-center text-ink-400">No customers found.</td></tr>
+                <tr><td colSpan={6} className="px-5 py-10 text-center text-ink-400">No customers found.</td></tr>
               )}
             </tbody>
           </table>

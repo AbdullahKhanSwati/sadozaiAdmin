@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Boxes, Download, ChevronDown, ChevronRight, RefreshCw, User, CalendarDays,
+  Boxes, Download, ChevronDown, ChevronRight, ChevronUp, RefreshCw, User, CalendarDays,
   Plus, Trash2, Tag, Package,
 } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
@@ -80,6 +80,33 @@ export default function Stock() {
     if (!window.confirm('Delete this item?')) return;
     await supabaseMunchies.from('stock_items').delete().eq('id', id);
     load();
+  };
+
+  // Delete a whole stock check (e.g. a mistaken entry / a week's count).
+  const deleteEntry = async (id) => {
+    if (!window.confirm('Delete this stock check? The entry and all its counts will be removed.')) return;
+    await supabaseMunchies.from('stock_counts').delete().eq('id', id);
+    setExpanded(null);
+    load();
+  };
+
+  // Reorder categories / items — persist sort_order = position so the app's
+  // screens and the exported Excel follow the same order.
+  const moveCat = async (index, dir) => {
+    const arr = [...stockCats];
+    const j = index + dir;
+    if (j < 0 || j >= arr.length) return;
+    [arr[index], arr[j]] = [arr[j], arr[index]];
+    setStockCats(arr.map((c, i) => ({ ...c, sort_order: i })));
+    await Promise.all(arr.map((c, i) => supabaseMunchies.from('stock_categories').update({ sort_order: i }).eq('id', c.id)));
+  };
+  const moveItem = async (index, dir) => {
+    const arr = [...stockItemsList];
+    const j = index + dir;
+    if (j < 0 || j >= arr.length) return;
+    [arr[index], arr[j]] = [arr[j], arr[index]];
+    setStockItemsList(arr.map((it, i) => ({ ...it, sort_order: i })));
+    await Promise.all(arr.map((it, i) => supabaseMunchies.from('stock_items').update({ sort_order: i }).eq('id', it.id)));
   };
 
   const staffName = (id) => names[id] || 'Unknown';
@@ -192,8 +219,9 @@ export default function Stock() {
               <input value={newCat} onChange={(e) => setNewCat(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addCategory()} placeholder="New category name" className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
               <button onClick={addCategory} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-mun-600 text-white text-sm font-semibold hover:bg-mun-700"><Plus className="w-4 h-4" /> Add</button>
             </div>
-            {stockCats.length === 0 ? <p className="text-sm text-ink-400">No categories yet.</p> : stockCats.map((c) => (
+            {stockCats.length === 0 ? <p className="text-sm text-ink-400">No categories yet.</p> : stockCats.map((c, i) => (
               <div key={c.id} className="flex items-center gap-2 py-2 border-t border-slate-100">
+                <ReorderBtns onUp={() => moveCat(i, -1)} onDown={() => moveCat(i, 1)} first={i === 0} last={i === stockCats.length - 1} />
                 <input defaultValue={c.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== c.name) renameCategory(c.id, v); }} className="flex-1 border-b border-transparent hover:border-slate-200 focus:border-mun-500 bg-transparent py-1 text-sm text-ink-800 focus:outline-none" />
                 <button onClick={() => deleteCategory(c.id)} className="text-slate-400 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
               </div>
@@ -211,8 +239,9 @@ export default function Stock() {
               </select>
               <button onClick={addItem} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-mun-600 text-white text-sm font-semibold hover:bg-mun-700"><Plus className="w-4 h-4" /> Add</button>
             </div>
-            {stockItemsList.length === 0 ? <p className="text-sm text-ink-400">No items yet.</p> : stockItemsList.map((it) => (
+            {stockItemsList.length === 0 ? <p className="text-sm text-ink-400">No items yet.</p> : stockItemsList.map((it, i) => (
               <div key={it.id} className="flex items-center gap-2 py-2 border-t border-slate-100">
+                <ReorderBtns onUp={() => moveItem(i, -1)} onDown={() => moveItem(i, 1)} first={i === 0} last={i === stockItemsList.length - 1} />
                 <input defaultValue={it.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== it.name) updateItem(it.id, { name: v }); }} className="flex-1 min-w-0 border-b border-transparent hover:border-slate-200 focus:border-mun-500 bg-transparent py-1 text-sm text-ink-800 focus:outline-none" />
                 <select value={it.category_id || ''} onChange={(e) => updateItem(it.id, { category_id: e.target.value || null })} className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-ink-600">
                   <option value="">No category</option>
@@ -297,6 +326,9 @@ export default function Stock() {
                     ))}
                     {lines.length === 0 && <div className="text-sm text-ink-400">No items recorded.</div>}
                   </div>
+                  <button onClick={() => deleteEntry(c.id)} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-rose-200 text-sm font-semibold text-rose-600 hover:bg-rose-50">
+                    <Trash2 className="w-4 h-4" /> Delete this stock check
+                  </button>
                 </div>
               )}
             </div>
@@ -305,6 +337,20 @@ export default function Stock() {
       </div>
       </>
       )}
+    </div>
+  );
+}
+
+// Up/down reorder controls for a list row.
+function ReorderBtns({ onUp, onDown, first, last }) {
+  return (
+    <div className="flex flex-col shrink-0 -my-1">
+      <button onClick={onUp} disabled={first} className="text-slate-400 hover:text-mun-600 disabled:opacity-25 disabled:hover:text-slate-400 leading-none" title="Move up">
+        <ChevronUp className="w-4 h-4" />
+      </button>
+      <button onClick={onDown} disabled={last} className="text-slate-400 hover:text-mun-600 disabled:opacity-25 disabled:hover:text-slate-400 leading-none" title="Move down">
+        <ChevronDown className="w-4 h-4" />
+      </button>
     </div>
   );
 }

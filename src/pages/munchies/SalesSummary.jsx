@@ -41,13 +41,8 @@ export default function SalesSummary() {
   const onExport = () => downloadCsv(`munchies-sales-summary-${csvDate()}.csv`, [
     { label: 'Date', value: (r) => exportDate(r.date) },
     { label: 'Gross sales', value: (r) => r.gross || 0 },
-    { label: 'Refunds', value: (r) => r.refunds || 0 },
     { label: 'Discounts', value: (r) => r.discount || 0 },
     { label: 'Net sales', value: (r) => r.net || 0 },
-    { label: 'Cost of goods', value: (r) => r.cost || 0 },
-    { label: 'Gross profit', value: (r) => r.grossProfit || 0 },
-    { label: 'Margin', value: (r) => `${r.net ? ((r.grossProfit / r.net) * 100).toFixed(2) : '0.00'}%` },
-    { label: 'Taxes', value: () => 0 },
   ], reports.dailyRows);
 
   return (
@@ -104,8 +99,7 @@ export default function SalesSummary() {
                 <th className="text-left font-medium px-5 py-3">Date</th>
                 <th className="text-right font-medium px-5 py-3">Gross sales</th>
                 <th className="text-right font-medium px-5 py-3">Discounts</th>
-                <th className="text-right font-medium px-5 py-3">Cost of goods</th>
-                <th className="text-right font-medium px-5 py-3">Gross profit</th>
+                <th className="text-right font-medium px-5 py-3">Net sales</th>
               </tr>
             </thead>
             <tbody>
@@ -114,8 +108,7 @@ export default function SalesSummary() {
                   <td className="px-5 py-3.5 text-ink-700">{r.label} 2026</td>
                   <td className="px-5 py-3.5 text-right text-ink-700">{rs(r.gross)}</td>
                   <td className="px-5 py-3.5 text-right text-ink-700">{rs(r.discount)}</td>
-                  <td className="px-5 py-3.5 text-right text-ink-500">{rs(r.cost)}</td>
-                  <td className="px-5 py-3.5 text-right font-semibold text-ink-800">{rs(r.grossProfit)}</td>
+                  <td className="px-5 py-3.5 text-right font-semibold text-ink-800">{rs(r.net)}</td>
                 </tr>
               ))}
             </tbody>

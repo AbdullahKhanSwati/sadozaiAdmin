@@ -40,6 +40,7 @@ import CustomerList from './pages/munchies/CustomerList.jsx';
 import CustomerForm from './pages/munchies/CustomerForm.jsx';
 import Account from './pages/munchies/Account.jsx';
 import MunchiesStock from './pages/munchies/Stock.jsx';
+import MunchiesExpenses from './pages/munchies/Expenses.jsx';
 
 function RequireAuth({ children }) {
   const { session, loading } = useAuth();
@@ -146,6 +147,7 @@ function Shell() {
         <Route path="customers/new" element={<CustomerForm />} />
         <Route path="customers/:id" element={<CustomerForm />} />
 
+        <Route path="expenses" element={<MunchiesExpenses />} />
         <Route path="stock" element={<MunchiesStock />} />
         <Route path="settings" element={<MunchiesSettings />} />
       </Route>

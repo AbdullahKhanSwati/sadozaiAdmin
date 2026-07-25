@@ -1,17 +1,24 @@
 import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination } from './munchiesUi.jsx';
 import { rs } from '../../data/munchiesData.js';
 import { useMunchies } from '../../store/MunchiesStore.jsx';
+import { downloadCsv, csvDate } from '../../lib/csv.js';
 
 export default function Discounts() {
   const { reports } = useMunchies();
   const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(reports.discountReportRows, 10);
+
+  const onExport = () => downloadCsv(`munchies-discounts-${csvDate()}.csv`, [
+    { label: 'Name', value: 'name' },
+    { label: 'Discounts applied', value: (r) => r.applied || 0 },
+    { label: 'Amount discounted', value: (r) => r.amount || 0 },
+  ], reports.discountReportRows);
 
   return (
     <div className="max-w-[1400px] mx-auto">
       <ReportToolbar />
 
       <Panel>
-        <ExportBar />
+        <ExportBar onExport={onExport} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
