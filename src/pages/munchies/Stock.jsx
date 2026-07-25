@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Boxes, Download, ChevronDown, ChevronRight, RefreshCw, User, CalendarDays,
+  Plus, Trash2, Tag, Package,
 } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import { supabaseMunchies } from '../../lib/supabaseMunchies.js';
@@ -23,6 +24,10 @@ export default function Stock() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [expanded, setExpanded] = useState(null);
+  const [tab, setTab] = useState('entries'); // 'entries' | 'manage'
+  const [newCat, setNewCat] = useState('');
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemCat, setNewItemCat] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -41,6 +46,41 @@ export default function Stock() {
     setStockCats(cats || []); setStockItemsList(sit || []); setLoading(false);
   };
   useEffect(() => { load(); }, []);
+
+  // ---- Category + item management (staff stock catalog) --------------------
+  const addCategory = async () => {
+    const name = newCat.trim();
+    if (!name) return;
+    const { error } = await supabaseMunchies.from('stock_categories').insert({ name });
+    if (error) return window.alert(error.message);
+    setNewCat(''); load();
+  };
+  const renameCategory = async (id, name) => {
+    if (!name.trim()) return;
+    await supabaseMunchies.from('stock_categories').update({ name: name.trim() }).eq('id', id);
+    load();
+  };
+  const deleteCategory = async (id) => {
+    if (!window.confirm('Delete this category? Its items will become uncategorised.')) return;
+    await supabaseMunchies.from('stock_categories').delete().eq('id', id);
+    load();
+  };
+  const addItem = async () => {
+    const name = newItemName.trim();
+    if (!name) return;
+    const { error } = await supabaseMunchies.from('stock_items').insert({ name, category_id: newItemCat || null });
+    if (error) return window.alert(error.message);
+    setNewItemName(''); setNewItemCat(''); load();
+  };
+  const updateItem = async (id, patch) => {
+    await supabaseMunchies.from('stock_items').update(patch).eq('id', id);
+    load();
+  };
+  const deleteItem = async (id) => {
+    if (!window.confirm('Delete this item?')) return;
+    await supabaseMunchies.from('stock_items').delete().eq('id', id);
+    load();
+  };
 
   const staffName = (id) => names[id] || 'Unknown';
 
@@ -136,6 +176,55 @@ export default function Stock() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-2 mb-4">
+        {[['entries', 'Entries'], ['manage', 'Items & categories']].map(([k, label]) => (
+          <button key={k} onClick={() => setTab(k)} className={['px-4 py-2 rounded-lg text-sm font-semibold', tab === k ? 'bg-mun-600 text-white' : 'bg-white border border-slate-200 text-ink-600 hover:bg-slate-50'].join(' ')}>{label}</button>
+        ))}
+      </div>
+
+      {tab === 'manage' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Categories */}
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <div className="flex items-center gap-2 mb-4"><Tag className="w-5 h-5 text-mun-600" /><h3 className="font-bold text-ink-800">Categories</h3></div>
+            <div className="flex gap-2 mb-3">
+              <input value={newCat} onChange={(e) => setNewCat(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addCategory()} placeholder="New category name" className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+              <button onClick={addCategory} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-mun-600 text-white text-sm font-semibold hover:bg-mun-700"><Plus className="w-4 h-4" /> Add</button>
+            </div>
+            {stockCats.length === 0 ? <p className="text-sm text-ink-400">No categories yet.</p> : stockCats.map((c) => (
+              <div key={c.id} className="flex items-center gap-2 py-2 border-t border-slate-100">
+                <input defaultValue={c.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== c.name) renameCategory(c.id, v); }} className="flex-1 border-b border-transparent hover:border-slate-200 focus:border-mun-500 bg-transparent py-1 text-sm text-ink-800 focus:outline-none" />
+                <button onClick={() => deleteCategory(c.id)} className="text-slate-400 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
+              </div>
+            ))}
+          </div>
+
+          {/* Items */}
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <div className="flex items-center gap-2 mb-4"><Package className="w-5 h-5 text-mun-600" /><h3 className="font-bold text-ink-800">Items</h3></div>
+            <div className="flex flex-wrap gap-2 mb-3">
+              <input value={newItemName} onChange={(e) => setNewItemName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addItem()} placeholder="New item name" className="flex-1 min-w-[150px] border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+              <select value={newItemCat} onChange={(e) => setNewItemCat(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                <option value="">No category</option>
+                {stockCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <button onClick={addItem} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-mun-600 text-white text-sm font-semibold hover:bg-mun-700"><Plus className="w-4 h-4" /> Add</button>
+            </div>
+            {stockItemsList.length === 0 ? <p className="text-sm text-ink-400">No items yet.</p> : stockItemsList.map((it) => (
+              <div key={it.id} className="flex items-center gap-2 py-2 border-t border-slate-100">
+                <input defaultValue={it.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== it.name) updateItem(it.id, { name: v }); }} className="flex-1 min-w-0 border-b border-transparent hover:border-slate-200 focus:border-mun-500 bg-transparent py-1 text-sm text-ink-800 focus:outline-none" />
+                <select value={it.category_id || ''} onChange={(e) => updateItem(it.id, { category_id: e.target.value || null })} className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-ink-600">
+                  <option value="">No category</option>
+                  {stockCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <button onClick={() => deleteItem(it.id)} className="text-slate-400 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+      <>
       {/* Date filter */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 mb-4 flex flex-wrap items-end gap-4">
         <div>
@@ -214,6 +303,8 @@ export default function Stock() {
           );
         })}
       </div>
+      </>
+      )}
     </div>
   );
 }
