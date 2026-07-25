@@ -8,8 +8,15 @@ import {
   SUMMARY_METRICS, SUMMARY_CHART_TYPES, GRANULARITY_OPTIONS, rs, rsAxis,
 } from '../../data/munchiesData.js';
 import { useMunchies } from '../../store/MunchiesStore.jsx';
+import { downloadCsv, csvDate } from '../../lib/csv.js';
 
 const GREEN = '#7CB342';
+
+const exportDate = (iso) => {
+  if (!iso) return '';
+  const d = new Date(`${iso}T00:00:00`);
+  return d.toLocaleDateString('en-GB'); // dd/mm/yyyy
+};
 
 // Absolute delta + percentage line under each card, coloured by favourability.
 function SummaryDelta({ m }) {
@@ -30,6 +37,18 @@ export default function SalesSummary() {
   const active = SUMMARY_METRICS.find((m) => m.key === metric);
   const data = reports.summarySeries(active.field, granularity);
   const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(reports.dailyRows, 10);
+
+  const onExport = () => downloadCsv(`munchies-sales-summary-${csvDate()}.csv`, [
+    { label: 'Date', value: (r) => exportDate(r.date) },
+    { label: 'Gross sales', value: (r) => r.gross || 0 },
+    { label: 'Refunds', value: (r) => r.refunds || 0 },
+    { label: 'Discounts', value: (r) => r.discount || 0 },
+    { label: 'Net sales', value: (r) => r.net || 0 },
+    { label: 'Cost of goods', value: (r) => r.cost || 0 },
+    { label: 'Gross profit', value: (r) => r.grossProfit || 0 },
+    { label: 'Margin', value: (r) => `${r.net ? ((r.grossProfit / r.net) * 100).toFixed(2) : '0.00'}%` },
+    { label: 'Taxes', value: () => 0 },
+  ], reports.dailyRows);
 
   return (
     <div className="max-w-[1400px] mx-auto">
@@ -77,7 +96,7 @@ export default function SalesSummary() {
 
       {/* Export table */}
       <Panel>
-        <ExportBar />
+        <ExportBar onExport={onExport} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

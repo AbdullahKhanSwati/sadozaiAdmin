@@ -15,10 +15,22 @@ export default function CustomerList() {
 
   const onExport = () => downloadCsv(`munchies-customers-${csvDate()}.csv`,
     [
-      { label: 'Name', value: 'name' }, { label: 'Email', value: 'email' },
-      { label: 'Phone', value: 'phone' }, { label: 'City', value: 'city' },
-      { label: 'Total visits', value: 'visits' }, { label: 'Total spent', value: 'spent' },
-      { label: 'Points', value: 'points' },
+      { label: 'Customer id', value: 'id' },
+      { label: 'Customer name', value: (c) => c.name || 'Unknown' },
+      { label: 'Email', value: 'email' },
+      { label: 'Phone', value: 'phone' },
+      { label: 'Address', value: 'address' },
+      { label: 'City', value: 'city' },
+      { label: 'Region', value: 'region' },
+      { label: 'Postal code', value: 'postalCode' },
+      { label: 'Country', value: 'country' },
+      { label: 'Customer code', value: (c) => c.code || '' },
+      { label: 'Points balance', value: (c) => c.points || 0 },
+      { label: 'Note', value: 'note' },
+      { label: 'First visit', value: 'firstVisit' },
+      { label: 'Last visit', value: 'lastVisit' },
+      { label: 'Total visits', value: (c) => c.visits || 0 },
+      { label: 'Total spent', value: (c) => c.spent || 0 },
     ], customers);
 
   const onImport = async (e) => {

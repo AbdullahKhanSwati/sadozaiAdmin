@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Users, Trash2 } from 'lucide-react';
 import { Card, PrimaryBtn, CheckBox } from './catalogUi.jsx';
 import { usePagination, TablePagination } from './munchiesUi.jsx';
-import EmployeeBanner from './EmployeeBanner.jsx';
 import { useMunchies } from '../../store/MunchiesStore.jsx';
 import { ROLE_ACCESS } from '../../data/munchiesCatalog.js';
 
@@ -22,8 +21,6 @@ export default function AccessRights() {
 
   return (
     <div className="max-w-[1200px] mx-auto">
-      <EmployeeBanner />
-
       <Card>
         <div className="flex items-center gap-4 p-5">
           <PrimaryBtn onClick={() => navigate('/munchies/employees/access/new')}>+ Add role</PrimaryBtn>

@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Boxes, Download, ChevronDown, ChevronRight, RefreshCw, User, CalendarDays,
 } from 'lucide-react';
+import * as XLSX from 'xlsx-js-style';
 import { supabaseMunchies } from '../../lib/supabaseMunchies.js';
-import { downloadCsvMatrix, csvDate } from '../../lib/csv.js';
+import { csvDate } from '../../lib/csv.js';
 
 const fmtDate = (iso) =>
   iso ? new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : '—';
@@ -16,6 +17,8 @@ export default function Stock() {
   const [counts, setCounts] = useState([]);
   const [itemsByCount, setItemsByCount] = useState({});
   const [names, setNames] = useState({});         // user_id -> name
+  const [stockCats, setStockCats] = useState([]); // stock categories (ordered)
+  const [stockItemsList, setStockItemsList] = useState([]); // stock items
   const [loading, setLoading] = useState(true);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -23,16 +26,19 @@ export default function Stock() {
 
   const load = async () => {
     setLoading(true);
-    const [{ data: c }, { data: li }, { data: pr }] = await Promise.all([
+    const [{ data: c }, { data: li }, { data: pr }, { data: cats }, { data: sit }] = await Promise.all([
       supabaseMunchies.from('stock_counts').select('*').order('counted_on', { ascending: false }).order('created_at', { ascending: false }),
       supabaseMunchies.from('stock_count_items').select('*').order('id', { ascending: true }),
       supabaseMunchies.from('profiles').select('user_id, name'),
+      supabaseMunchies.from('stock_categories').select('*').order('sort_order', { ascending: true }).order('name', { ascending: true }),
+      supabaseMunchies.from('stock_items').select('*').order('sort_order', { ascending: true }).order('name', { ascending: true }),
     ]);
     const byCount = {};
     (li || []).forEach((r) => { (byCount[r.count_id] = byCount[r.count_id] || []).push(r); });
     const nm = {};
     (pr || []).forEach((p) => { nm[p.user_id] = p.name; });
-    setCounts(c || []); setItemsByCount(byCount); setNames(nm); setLoading(false);
+    setCounts(c || []); setItemsByCount(byCount); setNames(nm);
+    setStockCats(cats || []); setStockItemsList(sit || []); setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
@@ -53,23 +59,58 @@ export default function Stock() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered, names]);
 
-  // Export the filtered entries as a matrix: items as rows, each entry a column.
-  const exportCsv = () => {
+  // Export the filtered entries as a styled Excel sheet, grouped by category
+  // (merged, colour-coded column A) — same layout as the Munchies app.
+  const exportXlsx = () => {
     if (!filtered.length) return;
-    const cols = filtered.map((c) => ({
-      c,
-      label: `${shortDate(c.counted_on)} (${staffName(c.created_by)})`,
-      map: Object.fromEntries((itemsByCount[c.id] || []).map((li) => [li.item_id || li.item_name, li])),
-    }));
-    const keys = [];
-    const seen = new Set();
-    filtered.forEach((c) => (itemsByCount[c.id] || []).forEach((li) => {
-      const k = li.item_id || li.item_name;
-      if (!seen.has(k)) { seen.add(k); keys.push({ k, name: li.item_name }); }
-    }));
-    const M = [['Item', ...cols.map((c) => c.label)]];
-    keys.forEach(({ k, name }) => M.push([name, ...cols.map((c) => (c.map[k] ? c.map[k].quantity : ''))]));
-    downloadCsvMatrix(`munchies-stock-${csvDate()}.csv`, M);
+    const entries = [...filtered].reverse(); // oldest → newest columns
+    const dateCols = entries.map((c) => `${shortDate(c.counted_on)} (${staffName(c.created_by)})`);
+    const maps = entries.map((c) => Object.fromEntries((itemsByCount[c.id] || []).map((li) => [li.stock_item_id || li.item_name, li.quantity])));
+
+    // Group stock items by category (uncategorized last).
+    const byCat = {};
+    stockItemsList.forEach((it) => { const k = it.category_id || '__none'; (byCat[k] = byCat[k] || []).push(it); });
+    const groups = stockCats.map((cat) => ({ name: cat.name, items: byCat[cat.id] || [] }));
+    if ((byCat.__none || []).length) groups.push({ name: 'Uncategorized', items: byCat.__none });
+    const withItems = groups.filter((g) => g.items.length);
+    if (!withItems.length) return;
+
+    const PALETTE = ['FCE4D6', 'DDEBF7', 'E2EFDA', 'FFF2CC', 'EAD1DC', 'D9E1F2', 'FDE9D9'];
+    const HEADER_FILL = 'E8873A';
+    const bd = { style: 'thin', color: { rgb: 'BFBFBF' } };
+    const borders = { top: bd, bottom: bd, left: bd, right: bd };
+
+    const aoa = [['Munchies', '', ...dateCols]];
+    const merges = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+    const catFill = {};
+    let r = 1;
+    withItems.forEach((g, gi) => {
+      const fill = PALETTE[gi % PALETTE.length];
+      const start = r;
+      g.items.forEach((it, idx) => {
+        aoa.push([idx === 0 ? g.name : '', it.name, ...maps.map((m) => (it.id in m ? m[it.id] : ''))]);
+        catFill[r] = fill; r += 1;
+      });
+      if (g.items.length) merges.push({ s: { r: start, c: 0 }, e: { r: r - 1, c: 0 } });
+    });
+
+    const nCols = 2 + dateCols.length;
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!merges'] = merges;
+    ws['!cols'] = [{ wch: 16 }, { wch: 24 }, ...dateCols.map(() => ({ wch: 14 }))];
+    for (let R = 0; R < aoa.length; R += 1) {
+      for (let C = 0; C < nCols; C += 1) {
+        const ref = XLSX.utils.encode_cell({ r: R, c: C });
+        if (!ws[ref]) ws[ref] = { t: 's', v: '' };
+        const s = { border: borders, alignment: { vertical: 'center', wrapText: true, horizontal: C === 1 ? 'left' : 'center' } };
+        if (R === 0) { s.fill = { fgColor: { rgb: HEADER_FILL } }; s.font = { bold: true, color: { rgb: 'FFFFFF' } }; }
+        else if (C === 0) { s.fill = { fgColor: { rgb: catFill[R] || 'FFFFFF' } }; s.font = { bold: true }; }
+        ws[ref].s = s;
+      }
+    }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Stock');
+    XLSX.writeFile(wb, `munchies-stock-${csvDate()}.xlsx`);
   };
 
   return (
@@ -89,8 +130,8 @@ export default function Stock() {
           <button onClick={load} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-ink-600 hover:bg-slate-50">
             <RefreshCw className="w-4 h-4" /> Refresh
           </button>
-          <button onClick={exportCsv} disabled={!filtered.length} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-mun-600 text-white text-sm font-semibold hover:bg-mun-700 disabled:opacity-40">
-            <Download className="w-4 h-4" /> Export CSV
+          <button onClick={exportXlsx} disabled={!filtered.length} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-mun-600 text-white text-sm font-semibold hover:bg-mun-700 disabled:opacity-40">
+            <Download className="w-4 h-4" /> Export Excel
           </button>
         </div>
       </div>

@@ -215,10 +215,10 @@ export function Panel({ children, className = '' }) {
   );
 }
 
-export function ExportBar({ children }) {
+export function ExportBar({ children, onExport }) {
   return (
     <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-      <button className="text-sm font-bold tracking-wide text-ink-600 hover:text-mun-600">EXPORT</button>
+      <button onClick={onExport} className="text-sm font-bold tracking-wide text-ink-600 hover:text-mun-600">EXPORT</button>
       <div className="flex items-center gap-3">
         {children}
         <button className="text-ink-400 hover:text-ink-600" title="Columns">
