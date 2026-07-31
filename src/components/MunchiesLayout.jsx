@@ -11,7 +11,7 @@ const B = '/munchies';
 
 // `hidden: true` keeps the route working but drops it from the menu.
 const REPORT_CHILDREN = [
-  { to: `${B}/reports/sales-summary`,      label: 'Sales summary' },
+  { to: `${B}/reports/sales-summary`,      label: 'Summary' },
   { to: `${B}/reports/sales-by-item`,      label: 'Sales by item',     hidden: true },
   { to: `${B}/reports/sales-by-category`,  label: 'Sales by category', hidden: true },
   { to: `${B}/reports/sales-by-employee`,  label: 'Sales by employee', hidden: true },
@@ -47,6 +47,7 @@ const visibleChildren = (item) => item.children.filter((c) => !c.hidden);
 
 // Human page title from the current path (used in the green header).
 function titleFor(pathname) {
+  if (pathname.startsWith(`${B}/reports/summary`)) return 'Summary';
   if (pathname.startsWith(`${B}/account`)) return 'Account';
   if (pathname.startsWith(`${B}/items/new`)) return 'Create item';
   if (pathname.startsWith(`${B}/items/categories/new`)) return 'Create category';

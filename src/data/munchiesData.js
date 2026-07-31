@@ -36,6 +36,8 @@ export const SUMMARY_METRICS = [
   { key: 'grossSales',  label: 'Gross sales',  field: 'gross' },
   { key: 'discounts',   label: 'Discounts',    field: 'discount' },
   { key: 'netSales',    label: 'Net sales',    field: 'net' },
+  { key: 'expenses',    label: 'Expenses',     field: 'expenses' },
+  { key: 'netProfit',   label: 'Net profit',   field: 'netProfit' },
 ];
 
 // Daily breakdown (5 Jun → 4 Jul). gross drives the chart; net = gross - discount.

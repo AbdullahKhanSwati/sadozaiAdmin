@@ -60,6 +60,8 @@ export function MunchiesProvider({ children }) {
   });
   const [settings, setSettings] = useState(null);
   const [salesRows, setSalesRows] = useState({ receipts: [], lines: [] }); // raw for reports
+  const [expenses, setExpenses] = useState([]);            // raw rows — reports + Expenses page
+  const [expenseCategories, setExpenseCategories] = useState([]);
   const [ready, setReady] = useState(false);
 
   const reloadEntity = useCallback(async (stateKey) => {
@@ -76,6 +78,18 @@ export function MunchiesProvider({ children }) {
     setSalesRows({ receipts: rc.data || [], lines: rl.data || [] });
   }, []);
 
+  const reloadExpenses = useCallback(async () => {
+    const { data } = await sb.from('expenses').select('*')
+      .order('spent_on', { ascending: false }).order('created_at', { ascending: false });
+    setExpenses(data || []);
+  }, []);
+
+  const reloadExpenseCategories = useCallback(async () => {
+    const { data } = await sb.from('expense_categories').select('*')
+      .order('sort_order', { ascending: true, nullsFirst: true }).order('name', { ascending: true });
+    setExpenseCategories(data || []);
+  }, []);
+
   // Initial load.
   useEffect(() => {
     let active = true;
@@ -86,6 +100,7 @@ export function MunchiesProvider({ children }) {
       const s = await sb.from('business_settings').select('*').eq('id', 1).maybeSingle();
       const [rc, rl] = await Promise.all([sb.from('receipts').select('*'), sb.from('receipt_lines').select('*')]);
       if (!active) return;
+      await Promise.all([reloadExpenses(), reloadExpenseCategories()]);
 
       const next = {};
       ENTITIES.forEach(([stateKey, , map], i) => {
@@ -98,7 +113,7 @@ export function MunchiesProvider({ children }) {
       setReady(true);
     })();
     return () => { active = false; };
-  }, []);
+  }, [reloadExpenses, reloadExpenseCategories]);
 
   // Realtime: keep catalog + sales in sync with changes from the app/other tabs.
   useEffect(() => {
@@ -108,9 +123,11 @@ export function MunchiesProvider({ children }) {
     });
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'receipts' }, () => reloadSales());
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'receipt_lines' }, () => reloadSales());
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => reloadExpenses());
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'expense_categories' }, () => reloadExpenseCategories());
     channel.subscribe();
     return () => { sb.removeChannel(channel); };
-  }, [reloadEntity, reloadSales]);
+  }, [reloadEntity, reloadSales, reloadExpenses, reloadExpenseCategories]);
 
   // Generic optimistic upsert: no id → insert (DB generates id); id → update.
   // On any DB error we re-sync that entity from the server (self-healing), and
@@ -157,6 +174,51 @@ export function MunchiesProvider({ children }) {
     if (error) console.error('saveSettings', error);
   }, []);
 
+  // ---- Order cancellation ---------------------------------------------------
+  // The receipt is kept for the audit trail and simply flagged, so every report
+  // can exclude it while the order itself stays visible/restorable.
+  const setReceiptStatus = useCallback(async (id, status, reason) => {
+    const patch = status === 'cancelled'
+      ? { status: 'cancelled', cancelled_at: new Date().toISOString(), cancel_reason: reason || null }
+      : { status: 'completed', cancelled_at: null, cancel_reason: null };
+    setSalesRows((s) => ({ ...s, receipts: s.receipts.map((r) => (r.id === id ? { ...r, ...patch } : r)) }));
+    const { error } = await sb.from('receipts').update(patch).eq('id', id);
+    if (error) { console.error('setReceiptStatus', error); await reloadSales(); throw error; }
+  }, [reloadSales]);
+
+  const cancelReceipt = useCallback((id, reason) => setReceiptStatus(id, 'cancelled', reason), [setReceiptStatus]);
+  const restoreReceipt = useCallback((id) => setReceiptStatus(id, 'completed'), [setReceiptStatus]);
+
+  // ---- Expense categories ---------------------------------------------------
+  const addExpenseCategory = useCallback(async (name) => {
+    const clean = String(name || '').trim();
+    if (!clean) throw new Error('Enter a category name.');
+    const nextOrder = (expenseCategories.reduce((m, c) => Math.max(m, c.sort_order || 0), 0) || 0) + 1;
+    const { error } = await sb.from('expense_categories').insert({ name: clean, sort_order: nextOrder });
+    if (error) throw new Error(error.code === '23505' ? `"${clean}" already exists.` : error.message);
+    await reloadExpenseCategories();
+  }, [expenseCategories, reloadExpenseCategories]);
+
+  // Renaming also rewrites the text on existing expenses so history stays grouped.
+  const updateExpenseCategory = useCallback(async (id, name) => {
+    const clean = String(name || '').trim();
+    if (!clean) throw new Error('Enter a category name.');
+    const prev = expenseCategories.find((c) => c.id === id);
+    const { error } = await sb.from('expense_categories').update({ name: clean }).eq('id', id);
+    if (error) throw new Error(error.code === '23505' ? `"${clean}" already exists.` : error.message);
+    if (prev?.name && prev.name !== clean) {
+      await sb.from('expenses').update({ category: clean }).eq('category', prev.name);
+      await reloadExpenses();
+    }
+    await reloadExpenseCategories();
+  }, [expenseCategories, reloadExpenseCategories, reloadExpenses]);
+
+  const deleteExpenseCategory = useCallback(async (id) => {
+    const { error } = await sb.from('expense_categories').delete().eq('id', id);
+    if (error) throw error;
+    await reloadExpenseCategories();
+  }, [reloadExpenseCategories]);
+
   const reports = useMemo(() => computeReports({
     receipts: salesRows.receipts,
     lines: salesRows.lines,
@@ -164,13 +226,19 @@ export function MunchiesProvider({ children }) {
     categories: state.categories,
     employees: state.employees,
     customers: state.customers,
-  }), [salesRows, state.items, state.categories, state.employees, state.customers]);
+    expenses,
+  }), [salesRows, state.items, state.categories, state.employees, state.customers, expenses]);
 
   const value = useMemo(() => ({
     ...state,
     settings,
     reports,
     ready,
+    // expenses + their categories
+    expenses, expenseCategories, reloadExpenses, reloadExpenseCategories,
+    addExpenseCategory, updateExpenseCategory, deleteExpenseCategory,
+    // orders
+    cancelReceipt, restoreReceipt, reloadSales,
     // items
     saveItem: makeSave('items'), deleteItem: makeDelete('items'), deleteItems: makeDeleteMany('items'),
     // categories
@@ -193,7 +261,12 @@ export function MunchiesProvider({ children }) {
     roleName: (id) => state.roles.find((r) => r.id === id)?.name || '—',
     role: (id) => state.roles.find((r) => r.id === id) || null,
     employeeCount: (roleId) => state.employees.filter((e) => e.roleId === roleId).length,
-  }), [state, settings, reports, ready, makeSave, makeDelete, makeDeleteMany, saveSettings]);
+  }), [
+    state, settings, reports, ready, makeSave, makeDelete, makeDeleteMany, saveSettings,
+    expenses, expenseCategories, reloadExpenses, reloadExpenseCategories,
+    addExpenseCategory, updateExpenseCategory, deleteExpenseCategory,
+    cancelReceipt, restoreReceipt, reloadSales,
+  ]);
 
   return <MunchiesContext.Provider value={value}>{children}</MunchiesContext.Provider>;
 }

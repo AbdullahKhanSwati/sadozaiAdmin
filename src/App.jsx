@@ -107,6 +107,8 @@ function Shell() {
         <Route index element={<Navigate to="reports/sales-summary" replace />} />
         <Route path="reports" element={<Navigate to="sales-summary" replace />} />
         <Route path="reports/sales-summary" element={<SalesSummary />} />
+        {/* The page is now just "Summary" — keep the old path working as well. */}
+        <Route path="reports/summary" element={<SalesSummary />} />
         <Route path="reports/sales-by-item" element={<SalesByItem />} />
         <Route path="reports/sales-by-category" element={<SalesByCategory />} />
         <Route path="reports/sales-by-employee" element={<SalesByEmployee />} />

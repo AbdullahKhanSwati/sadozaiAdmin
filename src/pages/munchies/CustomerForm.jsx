@@ -13,7 +13,8 @@ export default function CustomerForm() {
   const { customers, saveCustomer, deleteCustomer, reports, ready } = useMunchies();
 
   const existing = customers.find((c) => c.id === id);
-  const purchases = existing ? reports.receiptRows.filter((r) => r.customerId === existing.id) : [];
+  // Cancelled orders aren't purchases.
+  const purchases = existing ? reports.receiptRows.filter((r) => r.customerId === existing.id && !r.cancelled) : [];
   const [form, setForm] = useState(() =>
     existing || {
       name: '', email: '', phone: '', address: '', city: '', region: '',

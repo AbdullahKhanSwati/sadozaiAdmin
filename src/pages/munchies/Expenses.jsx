@@ -1,43 +1,50 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Wallet, Plus, Trash2, Download, RefreshCw, Pencil, X } from 'lucide-react';
+import { Wallet, Plus, Trash2, Download, RefreshCw, Pencil, X, Tags } from 'lucide-react';
 import { supabaseMunchies as sb } from '../../lib/supabaseMunchies.js';
 import { rs } from '../../data/munchiesData.js';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
+import { useMunchies } from '../../store/MunchiesStore.jsx';
+import MunchiesExpenseCategoriesDialog from '../../components/dialogs/MunchiesExpenseCategoriesDialog.jsx';
 
-const CATEGORIES = ['Ingredients', 'Salaries', 'Rent', 'Utilities', 'Repair', 'Other'];
 const today = () => new Date().toISOString().slice(0, 10);
-const fmtDate = (iso) =>
-  iso ? new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 
-const EMPTY = { id: null, spent_on: today(), category: 'Ingredients', amount: '', description: '' };
+// On-screen date — readable. Excel-friendly dd/mm/yyyy is used for the export.
+const fmtDate = (iso) =>
+  iso ? new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: '2-digit' }) : '—';
+const exportDate = (iso) =>
+  iso ? new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB') : ''; // dd/mm/yyyy
+
+const EMPTY = { id: null, spent_on: today(), category: '', amount: '', description: '' };
 
 export default function Expenses() {
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { expenses: rows, expenseCategories, reloadExpenses } = useMunchies();
+  const [loading, setLoading] = useState(false);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [form, setForm] = useState(null); // null = closed, else EMPTY or an existing row
+  const [category, setCategory] = useState('');   // '' = all
+  const [form, setForm] = useState(null);          // null = closed, else EMPTY or an existing row
   const [saving, setSaving] = useState(false);
+  const [catsOpen, setCatsOpen] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    const { data } = await sb.from('expenses').select('*')
-      .order('spent_on', { ascending: false }).order('created_at', { ascending: false });
-    setRows(data || []);
-    setLoading(false);
-  };
-  useEffect(() => { load(); }, []);
+  const categoryNames = useMemo(() => expenseCategories.map((c) => c.name), [expenseCategories]);
+
+  const load = async () => { setLoading(true); await reloadExpenses(); setLoading(false); };
+  useEffect(() => { reloadExpenses(); }, [reloadExpenses]);
 
   const filtered = useMemo(() => rows.filter((e) => {
     if (from && (e.spent_on || '') < from) return false;
     if (to && (e.spent_on || '') > to) return false;
+    if (category && (e.category || '') !== category) return false;
     return true;
-  }), [rows, from, to]);
+  }), [rows, from, to, category]);
 
   const total = filtered.reduce((s, e) => s + (Number(e.amount) || 0), 0);
 
-  const openNew = () => setForm({ ...EMPTY, spent_on: today() });
-  const openEdit = (e) => setForm({ id: e.id, spent_on: e.spent_on || today(), category: e.category || 'Other', amount: String(e.amount ?? ''), description: e.description || '' });
+  const openNew = () => setForm({ ...EMPTY, spent_on: today(), category: categoryNames[0] || 'Other' });
+  const openEdit = (e) => setForm({
+    id: e.id, spent_on: e.spent_on || today(), category: e.category || categoryNames[0] || 'Other',
+    amount: String(e.amount ?? ''), description: e.description || '',
+  });
 
   const save = async () => {
     if (!form.amount || !String(form.description).trim()) return window.alert('Amount and description are required.');
@@ -64,11 +71,17 @@ export default function Expenses() {
   };
 
   const onExport = () => downloadCsv(`munchies-expenses-${csvDate()}.csv`, [
-    { label: 'Date', value: (e) => fmtDate(e.spent_on) },
+    { label: 'Date', value: (e) => exportDate(e.spent_on) },
     { label: 'Category', value: 'category' },
     { label: 'Amount', value: (e) => Number(e.amount) || 0 },
     { label: 'Description', value: 'description' },
   ], filtered);
+
+  // The category the form is editing might have been deleted from the list —
+  // keep showing it so saving doesn't silently change it.
+  const formCategoryOptions = form && form.category && !categoryNames.includes(form.category)
+    ? [form.category, ...categoryNames]
+    : categoryNames;
 
   return (
     <div className="max-w-[1100px] mx-auto">
@@ -83,9 +96,12 @@ export default function Expenses() {
             <p className="text-sm text-ink-500">Costs logged from the app and here</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button onClick={load} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-ink-600 hover:bg-slate-50">
             <RefreshCw className="w-4 h-4" /> Refresh
+          </button>
+          <button onClick={() => setCatsOpen(true)} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-ink-600 hover:bg-slate-50">
+            <Tags className="w-4 h-4" /> Categories
           </button>
           <button onClick={onExport} disabled={!filtered.length} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-ink-600 hover:bg-slate-50 disabled:opacity-40">
             <Download className="w-4 h-4" /> Export
@@ -96,7 +112,7 @@ export default function Expenses() {
         </div>
       </div>
 
-      {/* Total + date filter */}
+      {/* Total + filters */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 mb-4 flex flex-wrap items-end gap-4">
         <div>
           <label className="block text-[11px] uppercase tracking-widest font-bold text-ink-400 mb-1">From</label>
@@ -106,8 +122,15 @@ export default function Expenses() {
           <label className="block text-[11px] uppercase tracking-widest font-bold text-ink-400 mb-1">To</label>
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm" />
         </div>
-        {(from || to) && (
-          <button onClick={() => { setFrom(''); setTo(''); }} className="text-sm font-semibold text-mun-600 hover:text-mun-700 py-2">Clear</button>
+        <div>
+          <label className="block text-[11px] uppercase tracking-widest font-bold text-ink-400 mb-1">Category</label>
+          <select value={category} onChange={(e) => setCategory(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm min-w-[150px]">
+            <option value="">All categories</option>
+            {categoryNames.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        {(from || to || category) && (
+          <button onClick={() => { setFrom(''); setTo(''); setCategory(''); }} className="text-sm font-semibold text-mun-600 hover:text-mun-700 py-2">Clear</button>
         )}
         <div className="ml-auto text-right">
           <div className="text-[11px] uppercase tracking-widest font-bold text-ink-400">Total ({filtered.length})</div>
@@ -154,9 +177,13 @@ export default function Expenses() {
                 <input type="date" value={form.spent_on} onChange={(e) => setForm((f) => ({ ...f, spent_on: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>
-                <label className="block text-xs text-ink-400 mb-1">Category</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs text-ink-400">Category</label>
+                  <button onClick={() => setCatsOpen(true)} className="text-xs font-semibold text-mun-600 hover:text-mun-700">Manage</button>
+                </div>
                 <select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
-                  {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  {formCategoryOptions.length === 0 && <option value="">No categories — add one first</option>}
+                  {formCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
@@ -177,6 +204,8 @@ export default function Expenses() {
           </div>
         </div>
       )}
+
+      <MunchiesExpenseCategoriesDialog open={catsOpen} onClose={() => setCatsOpen(false)} />
     </div>
   );
 }
