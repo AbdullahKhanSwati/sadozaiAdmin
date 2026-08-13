@@ -14,14 +14,18 @@ export const businesses = [
   },
   {
     id: 'sadozai',
-    name: 'Sadozai Blocks',
+    name: 'Block Factory',
     type: 'Block Factory',
     tag: 'Manufacturing',
     emoji: '🏭',
-    accent: '#F4B860',
-    accentDark: '#B47A2B',
-    available: false,
-    summary: 'Production, dispatch, raw materials',
+    accent: '#5BA82F',
+    accentDark: '#3C7320',
+    available: true,
+    // Real Supabase auth (Block Factory project). Only admin accounts may sign
+    // in here; staff are refused and can use the Block Factory app only.
+    defaultEmail: '',
+    defaultPassword: '',
+    summary: 'Reports, items, customers, receivables',
   },
   {
     id: 'munchies',

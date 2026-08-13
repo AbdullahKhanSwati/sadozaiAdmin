@@ -42,6 +42,38 @@ import Account from './pages/munchies/Account.jsx';
 import MunchiesStock from './pages/munchies/Stock.jsx';
 import MunchiesExpenses from './pages/munchies/Expenses.jsx';
 
+// Block Factory admin — same shape as Munchies, plus customer receivables.
+import { BlockFactoryProvider } from './store/BlockFactoryStore.jsx';
+import BlockFactoryLayout from './components/BlockFactoryLayout.jsx';
+import BfSalesSummary from './pages/blockFactory/SalesSummary.jsx';
+import BfSalesByItem from './pages/blockFactory/SalesByItem.jsx';
+import BfSalesByCategory from './pages/blockFactory/SalesByCategory.jsx';
+import BfSalesByEmployee from './pages/blockFactory/SalesByEmployee.jsx';
+import BfReceipts from './pages/blockFactory/Receipts.jsx';
+import BfSalesByModifier from './pages/blockFactory/SalesByModifier.jsx';
+import BfDiscounts from './pages/blockFactory/Discounts.jsx';
+import BfSettings from './pages/blockFactory/Settings.jsx';
+import BfComingSoon from './pages/blockFactory/ComingSoon.jsx';
+import BfItemList from './pages/blockFactory/ItemList.jsx';
+import BfItemForm from './pages/blockFactory/ItemForm.jsx';
+import BfCategories from './pages/blockFactory/Categories.jsx';
+import BfCategoryForm from './pages/blockFactory/CategoryForm.jsx';
+import BfModifiers from './pages/blockFactory/Modifiers.jsx';
+import BfModifierForm from './pages/blockFactory/ModifierForm.jsx';
+import BfItemDiscounts from './pages/blockFactory/ItemDiscounts.jsx';
+import BfDiscountForm from './pages/blockFactory/DiscountForm.jsx';
+import BfEmployeeList from './pages/blockFactory/EmployeeList.jsx';
+import BfEmployeeForm from './pages/blockFactory/EmployeeForm.jsx';
+import BfAccessRights from './pages/blockFactory/AccessRights.jsx';
+import BfRoleForm from './pages/blockFactory/RoleForm.jsx';
+import BfCustomerList from './pages/blockFactory/CustomerList.jsx';
+import BfCustomerForm from './pages/blockFactory/CustomerForm.jsx';
+import BfCustomerStatement from './pages/blockFactory/CustomerStatement.jsx';
+import BfReceivables from './pages/blockFactory/Receivables.jsx';
+import BfAccount from './pages/blockFactory/Account.jsx';
+import BfStock from './pages/blockFactory/Stock.jsx';
+import BfExpenses from './pages/blockFactory/Expenses.jsx';
+
 function RequireAuth({ children }) {
   const { session, loading } = useAuth();
   if (loading) return null; // wait for the async session refresh before deciding
@@ -64,6 +96,7 @@ function HomeRedirect() {
   if (loading) return null;
   if (!session) return <Navigate to="/login" replace />;
   if (session.businessId === 'munchies') return <Navigate to="/munchies" replace />;
+  if (session.businessId === 'sadozai') return <Navigate to="/block-factory" replace />;
   return <Navigate to="/admin/dashboard" replace />;
 }
 
@@ -152,6 +185,67 @@ function Shell() {
         <Route path="expenses" element={<MunchiesExpenses />} />
         <Route path="stock" element={<MunchiesStock />} />
         <Route path="settings" element={<MunchiesSettings />} />
+      </Route>
+
+      {/* Block Factory admin */}
+      <Route
+        path="/block-factory"
+        element={
+          <RequireAuth>
+            <BlockFactoryProvider>
+              <BlockFactoryLayout />
+            </BlockFactoryProvider>
+          </RequireAuth>
+        }
+      >
+        <Route index element={<Navigate to="reports/sales-summary" replace />} />
+        <Route path="reports" element={<Navigate to="sales-summary" replace />} />
+        <Route path="reports/sales-summary" element={<BfSalesSummary />} />
+        <Route path="reports/summary" element={<BfSalesSummary />} />
+        <Route path="reports/sales-by-item" element={<BfSalesByItem />} />
+        <Route path="reports/sales-by-category" element={<BfSalesByCategory />} />
+        <Route path="reports/sales-by-employee" element={<BfSalesByEmployee />} />
+        <Route path="reports/receipts" element={<BfReceipts />} />
+        <Route path="reports/sales-by-modifier" element={<BfSalesByModifier />} />
+        <Route path="reports/discounts" element={<BfDiscounts />} />
+        <Route path="reports/receivables" element={<BfReceivables />} />
+        <Route path="reports/taxes" element={<BfComingSoon title="Taxes" />} />
+
+        {/* Items */}
+        <Route path="items" element={<Navigate to="list" replace />} />
+        <Route path="items/list" element={<BfItemList />} />
+        <Route path="items/new" element={<BfItemForm />} />
+        <Route path="items/categories" element={<BfCategories />} />
+        <Route path="items/categories/new" element={<BfCategoryForm />} />
+        <Route path="items/categories/:id" element={<BfCategoryForm />} />
+        <Route path="items/modifiers" element={<BfModifiers />} />
+        <Route path="items/modifiers/new" element={<BfModifierForm />} />
+        <Route path="items/modifiers/:id" element={<BfModifierForm />} />
+        <Route path="items/discounts" element={<BfItemDiscounts />} />
+        <Route path="items/discounts/new" element={<BfDiscountForm />} />
+        <Route path="items/discounts/:id" element={<BfDiscountForm />} />
+        <Route path="items/:id" element={<BfItemForm />} />
+
+        {/* Employees */}
+        <Route path="employees" element={<Navigate to="list" replace />} />
+        <Route path="employees/list" element={<BfEmployeeList />} />
+        <Route path="employees/new" element={<BfEmployeeForm />} />
+        <Route path="employees/access" element={<BfAccessRights />} />
+        <Route path="employees/access/new" element={<BfRoleForm />} />
+        <Route path="employees/access/:id" element={<BfRoleForm />} />
+        <Route path="employees/:id" element={<BfEmployeeForm />} />
+
+        <Route path="account" element={<BfAccount />} />
+
+        {/* Customers — statement carries the receivables ledger */}
+        <Route path="customers" element={<BfCustomerList />} />
+        <Route path="customers/new" element={<BfCustomerForm />} />
+        <Route path="customers/:id/statement" element={<BfCustomerStatement />} />
+        <Route path="customers/:id" element={<BfCustomerForm />} />
+
+        <Route path="expenses" element={<BfExpenses />} />
+        <Route path="stock" element={<BfStock />} />
+        <Route path="settings" element={<BfSettings />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/login" replace />} />

@@ -28,6 +28,20 @@ export default {
           800: '#1E293B',
           900: '#0F172A',
         },
+        // Block Factory admin — matches the app's theme.js greens exactly
+        // (primary #5BA82F, primaryDark #4A8C25, primaryDarker #3C7320).
+        bf: {
+          50:  '#EAF4E1',
+          100: '#D3E9C2',
+          200: '#B9DC9E',
+          300: '#9ECF7A',
+          400: '#86C25E',
+          500: '#5BA82F',
+          600: '#4A8C25',
+          700: '#3C7320',
+          800: '#2F5A19',
+          900: '#234312',
+        },
         // Munchies admin (Loyverse-style green)
         mun: {
           50:  '#E8F5E9',

@@ -87,7 +87,7 @@ export default function Login() {
             </h1>
             <p className="text-white/70 mt-3 text-sm lg:text-base">
               Pick one of your businesses below to sign in to its admin dashboard.
-              Shots and Munchies panels are enabled in this release.
+              Shots, Munchies and Block Factory panels are enabled in this release.
             </p>
           </div>
 
