@@ -109,10 +109,12 @@ export default function Login() {
                 >
                   <div className="flex items-start gap-3">
                     <div
-                      className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0"
+                      className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0 overflow-hidden"
                       style={{ backgroundColor: `${b.accent}30`, border: `1px solid ${b.accent}55` }}
                     >
-                      <span>{b.emoji}</span>
+                      {b.logo
+                        ? <img src={b.logo} alt="" className="w-full h-full object-contain p-1" />
+                        : <span>{b.emoji}</span>}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -159,10 +161,12 @@ export default function Login() {
           >
             <div className="flex items-center gap-3 mb-2">
               <div
-                className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl shrink-0"
+                className="w-16 h-11 rounded-xl flex items-center justify-center text-2xl shrink-0 overflow-hidden"
                 style={{ backgroundColor: `${selected.accent}1A`, border: `1px solid ${selected.accent}33` }}
               >
-                {selected.emoji}
+                {selected.logo
+                  ? <img src={selected.logo} alt="" className="w-full h-full object-contain p-1" />
+                  : selected.emoji}
               </div>
               <div className="min-w-0">
                 <div className="text-xs uppercase tracking-widest text-ink-500">Signing in to</div>

@@ -36,6 +36,154 @@ function Dropdown({ open, setOpen, button, children, width = 'w-64', align = 'le
 }
 
 // ---- Date navigator (static range with ‹ › arrows) -----------------------
+// ---- Date range picker (presets + custom, usable on a phone) -------------
+// `<input type="date">` is deliberate: it opens the native date wheel on
+// Android/iOS, which the old static arrows never did.
+const pad2 = (n) => String(n).padStart(2, '0');
+const isoOf = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+
+export const RANGE_PRESETS = [
+  { key: 'today', label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: 'week', label: 'This week' },
+  { key: 'mtd', label: 'Month to date' },
+  { key: 'lastMonth', label: 'Last month' },
+  { key: 'ytd', label: 'Year to date' },
+  { key: 'all', label: 'All time' },
+];
+
+export function rangeFor(key, today = new Date()) {
+  const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  switch (key) {
+    case 'today': return { key, start: isoOf(t), end: isoOf(t) };
+    case 'yesterday': { const y = addDays(t, -1); return { key, start: isoOf(y), end: isoOf(y) }; }
+    case 'week': {
+      const dow = (t.getDay() + 6) % 7;             // Monday-based
+      return { key, start: isoOf(addDays(t, -dow)), end: isoOf(t) };
+    }
+    case 'mtd': return { key, start: isoOf(new Date(t.getFullYear(), t.getMonth(), 1)), end: isoOf(t) };
+    case 'lastMonth': return {
+      key,
+      start: isoOf(new Date(t.getFullYear(), t.getMonth() - 1, 1)),
+      end: isoOf(new Date(t.getFullYear(), t.getMonth(), 0)),
+    };
+    case 'ytd': return { key, start: isoOf(new Date(t.getFullYear(), 0, 1)), end: isoOf(t) };
+    case 'all': return { key, start: '', end: '' };
+    default: return { key: 'custom', start: isoOf(t), end: isoOf(t) };
+  }
+}
+
+// Month to date is the default period for the summary.
+export const defaultRange = () => rangeFor('mtd');
+
+const fmtDay = (s) => (s ? new Date(`${s}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
+
+export function rangeLabel(range) {
+  if (!range || range.key === 'all') return 'All time';
+  const preset = RANGE_PRESETS.find((p) => p.key === range.key);
+  if (preset) return preset.label;
+  return `${fmtDay(range.start)} - ${fmtDay(range.end)}`;
+}
+
+// Is an ISO day inside the range? An empty range means "everything".
+export const inRange = (isoDay, range) => {
+  if (!range || range.key === 'all' || (!range.start && !range.end)) return true;
+  if (!isoDay) return false;
+  return (!range.start || isoDay >= range.start) && (!range.end || isoDay <= range.end);
+};
+
+export function DateRangePicker({ range, onChange }) {
+  const [open, setOpen] = useState(false);
+  const r = range || defaultRange();
+
+  // Shift the window by its own length, so the arrows page through periods.
+  const step = (dir) => {
+    if (!r.start || !r.end) return;
+    const s = new Date(`${r.start}T00:00:00`);
+    const e = new Date(`${r.end}T00:00:00`);
+    const days = Math.round((e - s) / 86400000) + 1;
+    onChange({ key: 'custom', start: isoOf(addDays(s, dir * days)), end: isoOf(addDays(e, dir * days)) });
+  };
+
+  return (
+    <div className="relative flex items-center">
+      <div className="flex items-center bg-white border border-slate-200 rounded-md overflow-hidden shadow-soft">
+        <button
+          onClick={() => step(-1)}
+          disabled={!r.start}
+          className="px-2.5 py-2 hover:bg-slate-50 text-ink-500 border-r border-slate-200 disabled:opacity-30"
+          aria-label="Previous period"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-ink-700 hover:bg-slate-50 min-w-0"
+        >
+          <Calendar className="w-4 h-4 text-ink-400 shrink-0" />
+          <span className="truncate max-w-[190px]">{rangeLabel(r)}</span>
+          <ChevronDown className="w-4 h-4 text-ink-400 shrink-0" />
+        </button>
+        <button
+          onClick={() => step(1)}
+          disabled={!r.start}
+          className="px-2.5 py-2 hover:bg-slate-50 text-ink-500 border-l border-slate-200 disabled:opacity-30"
+          aria-label="Next period"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          {/* Fixed + centred on phones so the panel can never land off-screen. */}
+          <div className="fixed z-40 left-1/2 -translate-x-1/2 top-20 w-[min(22rem,calc(100vw-1.5rem))] max-h-[80vh] overflow-y-auto sm:absolute sm:left-0 sm:translate-x-0 sm:top-full sm:mt-1 bg-white rounded-md border border-slate-200 shadow-pop py-1 animate-fade-in">
+            {RANGE_PRESETS.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => { onChange(rangeFor(p.key)); setOpen(false); }}
+                className={[
+                  'block w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50',
+                  r.key === p.key ? 'text-bf-700 font-bold bg-bf-50' : 'text-ink-700',
+                ].join(' ')}
+              >
+                {p.label}
+              </button>
+            ))}
+            <div className="border-t border-slate-100 mt-1 pt-3 px-4 pb-3">
+              <div className="text-xs font-bold uppercase tracking-wide text-ink-400 mb-2">Custom range</div>
+              <label className="block text-xs text-ink-400 mb-1">Start</label>
+              <input
+                type="date"
+                value={r.start || ''}
+                max={r.end || undefined}
+                onChange={(e) => onChange({ key: 'custom', start: e.target.value, end: r.end || e.target.value })}
+                className="w-full border border-slate-200 rounded px-2 py-2 text-sm text-ink-800 mb-3 focus:outline-none focus:border-bf-500"
+              />
+              <label className="block text-xs text-ink-400 mb-1">End</label>
+              <input
+                type="date"
+                value={r.end || ''}
+                min={r.start || undefined}
+                onChange={(e) => onChange({ key: 'custom', start: r.start || e.target.value, end: e.target.value })}
+                className="w-full border border-slate-200 rounded px-2 py-2 text-sm text-ink-800 focus:outline-none focus:border-bf-500"
+              />
+              <button
+                onClick={() => setOpen(false)}
+                className="mt-3 w-full bg-bf-600 text-white rounded py-2 text-sm font-bold hover:bg-bf-700"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function DateNav() {
   return (
     <div className="flex items-center bg-white border border-slate-200 rounded-md overflow-hidden shadow-soft">
@@ -195,10 +343,12 @@ export function ChartSelect({ value, options, onChange, width = 'w-40' }) {
 }
 
 // ---- Toolbar (date + time + employee) ------------------------------------
-export function ReportToolbar({ children }) {
+// Pass `range` + `onRange` to get the live picker; without them the toolbar
+// falls back to the old static label (pages that don't filter by date yet).
+export function ReportToolbar({ children, range, onRange }) {
   return (
     <div className="flex flex-wrap items-center gap-3 mb-5">
-      <DateNav />
+      {onRange ? <DateRangePicker range={range} onChange={onRange} /> : <DateNav />}
       <TimeFilter />
       <EmployeeFilter />
       {children}

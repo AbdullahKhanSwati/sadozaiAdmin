@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ComposedChart, Area, Line, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import { ReportToolbar, Panel, ExportBar, ChartSelect, usePagination, TablePagination } from './munchiesUi.jsx';
+import {
+  ReportToolbar, Panel, ExportBar, ChartSelect, usePagination, TablePagination,
+  defaultRange, inRange, rangeLabel,
+} from './munchiesUi.jsx';
 import {
   SUMMARY_METRICS, SUMMARY_CHART_TYPES, GRANULARITY_OPTIONS, rs, rsAxis,
 } from '../../data/munchiesData.js';
@@ -36,9 +39,65 @@ export default function SalesSummary() {
   const [granularity, setGranularity] = useState('Days');
   const [showExpenses, setShowExpenses] = useState(true);
 
+  // Every figure on this page is scoped to the selected period, which starts at
+  // month-to-date rather than "everything ever".
+  const [range, setRange] = useState(defaultRange);
+
   const active = SUMMARY_METRICS.find((m) => m.key === metric);
-  const data = reports.summarySeries(active.field, granularity);
-  const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(reports.dailyRows, 10);
+
+  // Days inside the period, oldest first (chart order).
+  const periodDays = useMemo(
+    () => (reports.daily || []).filter((d) => inRange(d.date, range)),
+    [reports.daily, range]
+  );
+  const periodRows = useMemo(() => [...periodDays].reverse(), [periodDays]);
+  const periodExpenseRows = useMemo(
+    () => (reports.expenseDailyRows || []).filter((r) => inRange(r.date, range)),
+    [reports.expenseDailyRows, range]
+  );
+
+  // Period totals — the stat cards. Derived from the same day rows the table
+  // shows, so the cards and the table can never disagree.
+  const totals = useMemo(() => {
+    const sum = (f) => periodDays.reduce((s, d) => s + (d[f] || 0), 0);
+    const gross = sum('gross');
+    const discount = sum('discount');
+    const refunds = sum('refunds');
+    const expenses = sum('expenses');
+    const net = gross - discount - refunds;
+    return {
+      grossSales: gross, discounts: discount, refunds,
+      netSales: net, expenses, netProfit: net - expenses, grossProfit: net,
+    };
+  }, [periodDays]);
+
+  // Chart series over the period. Weeks bucket by real ISO week inside the
+  // range — the old fixed week list was hard-coded to a sample month, so the
+  // chart came up empty whenever "Weeks" was picked.
+  const data = useMemo(() => {
+    if (granularity === 'Weeks') {
+      const buckets = new Map();
+      periodDays.forEach((d) => {
+        const dt = new Date(`${d.date}T00:00:00`);
+        const dow = (dt.getDay() + 6) % 7;               // Monday-based
+        const monday = new Date(dt); monday.setDate(dt.getDate() - dow);
+        const key = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+        const cur = buckets.get(key) || {
+          key,
+          bucket: monday.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+          value: 0,
+          expenses: 0,
+        };
+        cur.value += d[active.field] || 0;
+        cur.expenses += d.expenses || 0;
+        buckets.set(key, cur);
+      });
+      return [...buckets.values()].sort((a, b) => a.key.localeCompare(b.key));
+    }
+    return periodDays.map((d) => ({ bucket: d.label, value: d[active.field] || 0, expenses: d.expenses || 0 }));
+  }, [periodDays, granularity, active.field]);
+
+  const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(periodRows, 10);
 
   // The expenses series is already in the data; only draw it when it adds
   // something (i.e. the selected metric isn't Expenses itself).
@@ -52,7 +111,7 @@ export default function SalesSummary() {
     { label: 'Net sales', value: (r) => r.net || 0 },
     { label: 'Expenses', value: (r) => r.expenses || 0 },
     { label: 'Net profit', value: (r) => r.netProfit || 0 },
-  ], reports.dailyRows);
+  ], periodRows);
 
   // Every expense of the period, grouped by day + category (one row each).
   const onExportExpenseBreakdown = () => downloadCsv(`munchies-expenses-by-day-${csvDate()}.csv`, [
@@ -60,17 +119,17 @@ export default function SalesSummary() {
     { label: 'Category', value: 'category' },
     { label: 'Entries', value: (r) => r.count || 0 },
     { label: 'Amount', value: (r) => r.amount || 0 },
-  ], reports.expenseDailyRows);
+  ], periodExpenseRows);
 
   return (
     <div className="max-w-[1400px] mx-auto">
-      <ReportToolbar />
+      <ReportToolbar range={range} onRange={setRange} />
 
       <Panel className="mb-4">
         {/* Metric tabs */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x divide-slate-100">
           {SUMMARY_METRICS.map((m) => {
-            const d = reports.summary[m.key];
+            const d = { ...reports.summary[m.key], value: totals[m.key] ?? 0 };
             const on = metric === m.key;
             const negative = m.key === 'netProfit' && d.value < 0;
             return (
@@ -113,9 +172,16 @@ export default function SalesSummary() {
             </div>
           </div>
           <div className="h-[320px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              {renderSummaryChart(chartType, data, active.label, withExpenses)}
-            </ResponsiveContainer>
+            {data.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center text-ink-400 border border-dashed border-slate-200 rounded">
+                <div className="text-sm font-medium">Nothing to chart for “{rangeLabel(range)}”.</div>
+                <div className="text-xs mt-1">Pick another period from the date selector above.</div>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                {renderSummaryChart(chartType, data, active.label, withExpenses)}
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       </Panel>
@@ -123,9 +189,12 @@ export default function SalesSummary() {
       {/* Export table */}
       <Panel>
         <ExportBar onExport={onExport}>
+          <span className="hidden sm:inline text-xs font-semibold text-ink-400 whitespace-nowrap">
+            {rangeLabel(range)}
+          </span>
           <button
             onClick={onExportExpenseBreakdown}
-            disabled={!reports.expenseDailyRows.length}
+            disabled={!periodExpenseRows.length}
             className="text-sm font-bold tracking-wide text-ink-600 hover:text-mun-600 disabled:opacity-40 disabled:hover:text-ink-600"
             title="Every expense grouped by day and category"
           >
@@ -157,7 +226,7 @@ export default function SalesSummary() {
                   </td>
                 </tr>
               ))}
-              {reports.dailyRows.length === 0 && (
+              {periodRows.length === 0 && (
                 <tr><td colSpan={6} className="px-5 py-10 text-center text-ink-400">No sales or expenses in this period.</td></tr>
               )}
             </tbody>
@@ -193,6 +262,10 @@ function renderSummaryChart(type, data, label, withExpenses) {
     main = <Area type="monotone" dataKey="value" name={label} stroke={GREEN} strokeWidth={2} fill="url(#munGross)" dot={{ r: 2.5, fill: GREEN }} activeDot={{ r: 4 }} />;
   }
 
+  // With a long period, one tick per day turns the axis into a black smear —
+  // thin the labels out so ~14 stay readable.
+  const tickInterval = data.length > 14 ? Math.ceil(data.length / 14) - 1 : 0;
+
   return (
     <ComposedChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
       <defs>
@@ -202,7 +275,7 @@ function renderSummaryChart(type, data, label, withExpenses) {
         </linearGradient>
       </defs>
       <CartesianGrid strokeDasharray="0" stroke="#EEF2F6" vertical={false} />
-      <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: '#94A3B8' }} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} interval={0} angle={-40} textAnchor="end" height={60} />
+      <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: '#94A3B8' }} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} interval={tickInterval} angle={-40} textAnchor="end" height={60} />
       <YAxis tickFormatter={rsAxis} tick={{ fontSize: 11, fill: '#94A3B8' }} tickLine={false} axisLine={false} width={80} />
       <Tooltip formatter={(v) => rs(v)} labelStyle={{ fontWeight: 700 }} contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12 }} />
       {withExpenses && <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />}

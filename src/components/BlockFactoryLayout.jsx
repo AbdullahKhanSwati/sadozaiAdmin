@@ -127,6 +127,11 @@ export default function BlockFactoryLayout() {
         <button onClick={toggleMenu} className="p-2 -ml-1 rounded hover:bg-white/15 transition" aria-label="Toggle menu">
           <Menu className="w-6 h-6" />
         </button>
+        <img
+          src="/blockFactoryLogo.png"
+          alt="Block Factory"
+          className="h-9 w-auto max-w-[84px] object-contain rounded bg-white/15 px-1 shrink-0"
+        />
         <h1 className="text-lg sm:text-xl font-medium tracking-wide truncate">{titleFor(location.pathname)}</h1>
       </header>
 

@@ -50,19 +50,43 @@ export default function MunchiesSettings() {
 
 // ---- Receipt ---------------------------------------------------------------
 // header, phone, footer all print on the app's Bluetooth receipt.
+
+// Everything after the first dash prints on a second, smaller line:
+// "Munchies - Doberan Kallan" → MUNCHIES big, "Doberan Kallan" under it.
+// Keep in sync with splitHeader() in Munchies/src/lib/printer.js.
+function splitHeader(header) {
+  const raw = String(header || '').trim();
+  if (!raw) return { title: '', branch: '' };
+  const m = raw.match(/^(.+?)\s*[-\u2013\u2014]\s*(.+)$/);
+  if (m && m[1].trim() && m[2].trim()) return { title: m[1].trim(), branch: m[2].trim() };
+  return { title: raw, branch: '' };
+}
+
 function ReceiptSettings() {
   const { settings, saveSettings } = useMunchies();
   const r = settings?.receipt || {};
   const set = (patch) => saveSettings({ receipt: { ...r, ...patch } });
   const underlineCls = 'w-full border-b border-slate-300 bg-transparent py-2 text-ink-800 focus:outline-none focus:border-mun-500';
+  const { title, branch } = splitHeader(r.header || 'Munchies - Doberan Kallan');
   return (
     <>
       <h2 className="text-2xl font-semibold text-ink-800 mb-1">Receipt</h2>
       <p className="text-sm text-ink-400 mb-6">These print at the top and bottom of the Bluetooth receipt in the app.</p>
       <div className="space-y-6 max-w-md">
         <div>
-          <div className="text-xs text-ink-400 mb-1">Header (branch name)</div>
-          <input value={r.header || ''} onChange={(e) => set({ header: e.target.value })} placeholder="Doberan Kallan" className={underlineCls} />
+          <div className="text-xs text-ink-400 mb-1">Header (store &amp; branch)</div>
+          <input value={r.header || ''} onChange={(e) => set({ header: e.target.value })} placeholder="Munchies - Doberan Kallan" className={underlineCls} />
+          <div className="text-xs text-ink-400 mt-2">
+            Anything after the dash prints on a second, smaller line — e.g.
+            <span className="text-ink-600 font-medium"> Munchies - Doberan Kallan</span>.
+          </div>
+          {/* Live preview of the printed header block. */}
+          <div className="mt-3 border border-dashed border-slate-300 rounded bg-slate-50 px-4 py-3 text-center">
+            <div className="text-[10px] uppercase tracking-wide text-ink-400 mb-1">Prints as</div>
+            <div className="text-lg font-extrabold text-ink-800 leading-tight break-words">{title || '\u2014'}</div>
+            {branch && <div className="text-sm font-semibold text-ink-700 break-words">{branch}</div>}
+            {r.phone && <div className="text-xs text-ink-500 mt-0.5 break-words">{r.phone}</div>}
+          </div>
         </div>
         <div>
           <div className="text-xs text-ink-400 mb-1">Phone number</div>

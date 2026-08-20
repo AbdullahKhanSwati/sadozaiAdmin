@@ -18,6 +18,7 @@ export const businesses = [
     type: 'Block Factory',
     tag: 'Manufacturing',
     emoji: '🏭',
+    logo: '/blockFactoryLogo.png',   // served from public/; falls back to emoji
     accent: '#5BA82F',
     accentDark: '#3C7320',
     available: true,
