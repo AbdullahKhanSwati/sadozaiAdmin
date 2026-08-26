@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { ArrowLeft, Ban } from 'lucide-react';
 import { Card, PrimaryBtn, TextBtn, GhostBtn, underline } from './catalogUi.jsx';
-import { useBlockFactory } from '../../store/BlockFactoryStore.jsx';
+import { useBlockFactory, isPaymentVoided } from '../../store/BlockFactoryStore.jsx';
+import { useAuth } from '../../context/AuthContext.jsx';
 import { rs } from '../../data/munchiesData.js';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
 
@@ -19,9 +20,10 @@ const fmtDate = (iso) =>
 export default function CustomerStatement() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { session } = useAuth();
   const {
     customers, reports, customerBalance, paymentsForCustomer, openBillsForCustomer,
-    addCustomerPayment, deleteCustomerPayment, ready,
+    addCustomerPayment, cancelCustomerPayment, ready,
   } = useBlockFactory();
 
   const customer = customers.find((c) => c.id === id);
@@ -36,6 +38,11 @@ export default function CustomerStatement() {
   const [note, setNote] = useState('');
   const [paidOn, setPaidOn] = useState(() => new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
+
+  // Voiding a payment — the reason is mandatory and is kept on the statement.
+  const [voidTarget, setVoidTarget] = useState(null);   // the payment being voided
+  const [voidReason, setVoidReason] = useState('');
+  const [voiding, setVoiding] = useState(false);
 
   const selectedBill = openBills.find((b) => b.id === receiptId) || null;
   const billDue = selectedBill ? selectedBill.balance : 0;
@@ -62,7 +69,7 @@ export default function CustomerStatement() {
       .filter((r) => r.customerId === id && !r.cancelled)
       .map((r) => {
         const applied = payments
-          .filter((p) => p.receipt_id === r.id)
+          .filter((p) => p.receipt_id === r.id && !isPaymentVoided(p))
           .reduce((s, p) => s + (Number(p.amount) || 0), 0);
         return { r, atTill: Math.max(0, (r.paid || 0) - applied) };
       })
@@ -79,6 +86,7 @@ export default function CustomerStatement() {
     const billByReceipt = Object.fromEntries((reports.receiptRows || []).map((r) => [r.id, r]));
     const pays = payments.map((p) => {
       const bill = p.receipt_id ? billByReceipt[p.receipt_id] : null;
+      const voided = isPaymentVoided(p);
       return {
         kind: 'payment',
         key: `p-${p.id}`,
@@ -87,7 +95,14 @@ export default function CustomerStatement() {
         label: 'Payment received',
         sub: [bill ? `Bill ${bill.billRef || bill.no}` : 'On account', p.note].filter(Boolean).join(' · '),
         billed: 0,
-        received: Number(p.amount) || 0,
+        // A cancelled payment stays on the statement for the audit trail, but
+        // it is no longer money received.
+        received: voided ? 0 : Number(p.amount) || 0,
+        cancelled: voided,
+        voidAmount: Number(p.amount) || 0,
+        voidReason: p.cancel_reason || '',
+        voidBy: p.cancelled_by || '',
+        voidAt: p.cancelled_at ? String(p.cancelled_at).slice(0, 10) : '',
       };
     });
     return [...sales, ...tillRows, ...pays].sort((a, b) => String(b.isoDate).localeCompare(String(a.isoDate)));
@@ -100,6 +115,10 @@ export default function CustomerStatement() {
       { label: 'Detail', value: 'sub' },
       { label: 'Billed', value: 'billed' },
       { label: 'Received', value: 'received' },
+      { label: 'Status', value: (r) => (r.cancelled ? 'Cancelled' : 'Live') },
+      { label: 'Cancelled amount', value: (r) => (r.cancelled ? r.voidAmount || 0 : '') },
+      { label: 'Cancellation note', value: (r) => (r.cancelled ? r.voidReason || '' : '') },
+      { label: 'Cancelled by', value: (r) => (r.cancelled ? r.voidBy || '' : '') },
     ], rows);
 
   const openDialog = () => {
@@ -131,12 +150,17 @@ export default function CustomerStatement() {
     }
   };
 
-  const removePayment = async (paymentId) => {
-    if (!window.confirm('Delete this payment? The customer’s balance will go back up.')) return;
+  const submitVoid = async () => {
+    if (!voidReason.trim()) return;
+    setVoiding(true);
     try {
-      await deleteCustomerPayment(paymentId);
+      await cancelCustomerPayment(voidTarget.id, voidReason, session?.profile?.name || session?.email || '');
+      setVoidTarget(null);
+      setVoidReason('');
     } catch (e) {
-      window.alert(e?.message || 'Could not delete the payment.');
+      window.alert(e?.message || 'Could not cancel the payment.');
+    } finally {
+      setVoiding(false);
     }
   };
 
@@ -207,14 +231,35 @@ export default function CustomerStatement() {
                     >
                       {r.label}
                     </button>
-                    {r.sub ? <div className="text-xs text-ink-400 mt-0.5">{r.sub}</div> : null}
+                    {r.sub ? <div className={`text-xs mt-0.5 ${r.cancelled ? 'text-ink-400 line-through' : 'text-ink-400'}`}>{r.sub}</div> : null}
+                    {/* The void stays on the record, with the reason that was given. */}
+                    {r.kind === 'payment' && r.cancelled && (
+                      <div className="mt-1 flex items-start gap-1.5">
+                        <span className="shrink-0 rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-600">
+                          Cancelled
+                        </span>
+                        <span className="text-xs text-ink-500">
+                          {r.voidReason}
+                          {r.voidBy ? ` — ${r.voidBy}` : ''}
+                          {r.voidAt ? ` · ${fmtDate(r.voidAt)}` : ''}
+                        </span>
+                      </div>
+                    )}
                   </td>
                   <td className="px-5 py-3.5 text-right text-ink-700">{r.billed ? rs(r.billed) : '—'}</td>
-                  <td className="px-5 py-3.5 text-right text-bf-700 font-semibold">{r.received ? rs(r.received) : '—'}</td>
+                  <td className="px-5 py-3.5 text-right text-bf-700 font-semibold">
+                    {r.cancelled && r.kind === 'payment'
+                      ? <span className="text-ink-300 line-through font-normal">{rs(r.voidAmount)}</span>
+                      : (r.received ? rs(r.received) : '—')}
+                  </td>
                   <td className="px-5 py-3.5 text-right">
-                    {r.kind === 'payment' && (
-                      <button onClick={() => removePayment(r.id)} className="text-ink-300 hover:text-rose-600" title="Delete payment">
-                        <Trash2 className="w-4 h-4" />
+                    {r.kind === 'payment' && !r.cancelled && (
+                      <button
+                        onClick={() => { setVoidTarget({ id: r.id, amount: r.received, isoDate: r.isoDate, sub: r.sub }); setVoidReason(''); }}
+                        className="text-ink-300 hover:text-rose-600"
+                        title="Cancel payment"
+                      >
+                        <Ban className="w-4 h-4" />
                       </button>
                     )}
                   </td>
@@ -239,6 +284,50 @@ export default function CustomerStatement() {
           </table>
         </div>
       </Card>
+
+      {/* Cancel a payment — the note is mandatory and is what the statement
+          shows next to the voided entry afterwards. */}
+      {voidTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 animate-fade-in" onClick={() => setVoidTarget(null)}>
+          <div className="bg-white rounded-xl shadow-pop w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="text-lg font-extrabold text-ink-800">Cancel this payment?</div>
+            <div className="text-sm text-ink-500 mt-1">
+              <span className="font-bold text-ink-700">{rs(voidTarget.amount)}</span> received {fmtDate(voidTarget.isoDate)}
+              {voidTarget.sub ? ` · ${voidTarget.sub}` : ''}.
+            </div>
+            <div className="mt-3 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-800">
+              The payment is not deleted — it stays on this statement marked cancelled, with your note, and the
+              customer’s balance goes back up.
+            </div>
+
+            <label className="block mt-4 text-xs font-semibold text-ink-500">
+              Reason for cancelling <span className="text-rose-600">*</span>
+            </label>
+            <textarea
+              value={voidReason}
+              onChange={(e) => setVoidReason(e.target.value)}
+              rows={3}
+              autoFocus
+              placeholder="e.g. entered twice by mistake — the customer only paid once"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-ink-800 outline-none focus:border-bf-500"
+            />
+            {!voidReason.trim() && (
+              <div className="mt-1 text-xs text-ink-400">A note is required before a payment can be cancelled.</div>
+            )}
+
+            <div className="flex justify-end gap-3 mt-5">
+              <GhostBtn onClick={() => setVoidTarget(null)}>Keep payment</GhostBtn>
+              <button
+                onClick={submitVoid}
+                disabled={voiding || !voidReason.trim()}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {voiding ? 'Cancelling…' : 'Cancel payment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Record payment */}
       {open && (

@@ -39,7 +39,8 @@ export function computeReports({
   // Money paid against each individual bill after the sale itself.
   const appliedByReceipt = {};
   customerPayments.forEach((p) => {
-    if (!p.receipt_id) return;
+    // A voided payment stays on the bill's log but is not money any more.
+    if (!p.receipt_id || (p.status || 'active') === 'cancelled') return;
     appliedByReceipt[p.receipt_id] = (appliedByReceipt[p.receipt_id] || 0) + num(p.amount);
   });
   const paidFor = (r) => num(r.paid) + (appliedByReceipt[r.id] || 0);

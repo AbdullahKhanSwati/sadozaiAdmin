@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, X } from 'lucide-react';
 import { Card, TextBtn } from './catalogUi.jsx';
 import { usePagination, TablePagination } from './bfUi.jsx';
-import { useBlockFactory } from '../../store/BlockFactoryStore.jsx';
+import { useBlockFactory, isPaymentVoided } from '../../store/BlockFactoryStore.jsx';
 import { rs } from '../../data/munchiesData.js';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
 
@@ -26,6 +26,7 @@ export default function Receivables() {
     const m = {};
     // customerPayments arrives newest-first, so the first hit wins.
     customerPayments.forEach((p) => {
+      if (isPaymentVoided(p)) return;          // "last payment" must be a live one
       if (!m[p.customer_id]) m[p.customer_id] = p;
     });
     return m;
@@ -61,7 +62,7 @@ export default function Receivables() {
   );
 
   const collectedTotal = useMemo(
-    () => customerPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0),
+    () => customerPayments.reduce((s, p) => s + (isPaymentVoided(p) ? 0 : Number(p.amount) || 0), 0),
     [customerPayments]
   );
 

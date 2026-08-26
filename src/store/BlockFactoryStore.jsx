@@ -9,6 +9,10 @@ import { computeReports } from '../data/blockFactoryReports.js';
 
 const BlockFactoryContext = createContext(null);
 
+// A payment is voided rather than deleted, so every balance has to skip the
+// cancelled ones while the statement still lists them.
+export const isPaymentVoided = (p) => (p?.status || 'active') === 'cancelled';
+
 // ---- UI field  ->  DB column maps ----------------------------------------
 const CATEGORY_KEYS = { name: 'name', color: 'color', sortOrder: 'sort_order' };
 const MODIFIER_KEYS = { name: 'name', options: 'options', sortOrder: 'sort_order' };
@@ -248,7 +252,7 @@ export function BlockFactoryProvider({ children }) {
       salesRows.receipts.filter((r) => (r.status || 'completed') === 'cancelled').map((r) => r.id)
     );
     customerPayments.forEach((p) => {
-      if (!p.customer_id) return;
+      if (!p.customer_id || isPaymentVoided(p)) return;   // a cancelled payment owes back
       // Money applied to a voided bill drops out with it.
       if (p.receipt_id && cancelledIds.has(p.receipt_id)) return;
       bucket(p.customer_id).paid += Number(p.amount) || 0;
@@ -278,7 +282,7 @@ export function BlockFactoryProvider({ children }) {
     const r = salesRows.receipts.find((x) => x.id === receiptId);
     if (!r) return { total: 0, paid: 0, balance: 0 };
     const applied = customerPayments
-      .filter((p) => p.receipt_id === receiptId)
+      .filter((p) => p.receipt_id === receiptId && !isPaymentVoided(p))
       .reduce((s, p) => s + (Number(p.amount) || 0), 0);
     const paid = (Number(r.paid) || 0) + applied;
     const total = Number(r.total) || 0;
@@ -329,8 +333,19 @@ export function BlockFactoryProvider({ children }) {
     return amt;
   }, [receiptBalance, reloadCustomerPayments]);
 
-  const deleteCustomerPayment = useCallback(async (id) => {
-    const { error } = await sb.from('customer_payments').delete().eq('id', id);
+  // Payments are NEVER deleted. Voiding one keeps the row on the bill's log,
+  // marked cancelled with the reason given, and stops it counting towards any
+  // balance — so the money is still accounted for and nobody has to argue about
+  // what happened to a payment that quietly disappeared.
+  const cancelCustomerPayment = useCallback(async (id, reason, by) => {
+    const text = (reason || '').trim();
+    if (!text) throw new Error('Add a note explaining why this payment is being cancelled.');
+    const { error } = await sb.from('customer_payments').update({
+      status: 'cancelled',
+      cancel_reason: text,
+      cancelled_at: new Date().toISOString(),
+      cancelled_by: by || null,
+    }).eq('id', id);
     if (error) throw error;
     await reloadCustomerPayments();
   }, [reloadCustomerPayments]);
@@ -356,7 +371,7 @@ export function BlockFactoryProvider({ children }) {
     addExpenseCategory, updateExpenseCategory, deleteExpenseCategory,
     // customer receivables
     customerPayments, customerBalances, customerBalance, paymentsForCustomer,
-    totalOutstanding, addCustomerPayment, deleteCustomerPayment, reloadCustomerPayments,
+    totalOutstanding, addCustomerPayment, cancelCustomerPayment, reloadCustomerPayments,
     receiptBalance, paymentsForReceipt, openBillsForCustomer,
     // orders
     cancelReceipt, restoreReceipt, reloadSales,
@@ -387,7 +402,7 @@ export function BlockFactoryProvider({ children }) {
     expenses, expenseCategories, reloadExpenses, reloadExpenseCategories,
     addExpenseCategory, updateExpenseCategory, deleteExpenseCategory,
     customerPayments, customerBalances, customerBalance, paymentsForCustomer,
-    totalOutstanding, addCustomerPayment, deleteCustomerPayment, reloadCustomerPayments,
+    totalOutstanding, addCustomerPayment, cancelCustomerPayment, reloadCustomerPayments,
     receiptBalance, paymentsForReceipt, openBillsForCustomer,
     cancelReceipt, restoreReceipt, reloadSales,
   ]);
