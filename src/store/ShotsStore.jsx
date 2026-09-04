@@ -47,6 +47,13 @@ const TIER_KEYS = {
   tier: 'tier', monthly: 'monthly', color: 'color', icon: 'icon', perks: 'perks',
 };
 const TABLE_TYPE_KEYS = { name: 'name', sortOrder: 'sort_order' };
+const PRICING_RULE_KEYS = {
+  tableType: 'table_type', mode: 'mode', players: 'players',
+  memberPrice: 'member_price', nonMemberPrice: 'non_member_price',
+  minMinutes: 'min_minutes', maxMinutes: 'max_minutes',
+  minPlayers: 'min_players', maxPlayers: 'max_players',
+  active: 'active', sortOrder: 'sort_order',
+};
 const BOOKING_DURATION_KEYS = { minutes: 'minutes', sortOrder: 'sort_order' };
 const EXPENSE_CATEGORY_KEYS = { name: 'name', sortOrder: 'sort_order' };
 
@@ -74,6 +81,7 @@ const rowToTier = (r) => fromRow(r, TIER_KEYS);
 const rowToTableType = (r) => fromRow(r, TABLE_TYPE_KEYS);
 const rowToBookingDuration = (r) => fromRow(r, BOOKING_DURATION_KEYS);
 const rowToExpenseCategory = (r) => fromRow(r, EXPENSE_CATEGORY_KEYS);
+const rowToPricingRule = (r) => fromRow(r, PRICING_RULE_KEYS);
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const nowTime = () => new Date().toTimeString().slice(0, 5);
@@ -91,6 +99,7 @@ export function ShotsProvider({ children }) {
   const [tableTypes, setTableTypes] = useState([]);
   const [bookingDurations, setBookingDurations] = useState([]);
   const [expenseCategories, setExpenseCategories] = useState([]);
+  const [pricingRules, setPricingRules] = useState([]);
   const [ready, setReady] = useState(false);
 
   // Initial load whenever the signed-in business changes.
@@ -98,12 +107,13 @@ export function ShotsProvider({ children }) {
     if (!businessId) {
       setTables([]); setMembers([]); setBookings([]);
       setFinance([]); setStaff([]); setTiers([]);
-      setTableTypes([]); setBookingDurations([]); setExpenseCategories([]); setReady(false);
+      setTableTypes([]); setBookingDurations([]); setExpenseCategories([]);
+      setPricingRules([]); setReady(false);
       return;
     }
     let active = true;
     (async () => {
-      const [t, m, b, f, s, ti, tt, bd, ec] = await Promise.all([
+      const [t, m, b, f, s, ti, tt, bd, ec, pr] = await Promise.all([
         supabase.from('pool_tables').select('*').order('number', { ascending: true }),
         supabase.from('members').select('*').order('created_at', { ascending: true }),
         supabase.from('bookings').select('*').order('date', { ascending: true }),
@@ -113,6 +123,7 @@ export function ShotsProvider({ children }) {
         supabase.from('table_types').select('*').order('sort_order', { ascending: true }),
         supabase.from('booking_durations').select('*').order('minutes', { ascending: true }),
         supabase.from('expense_categories').select('*').order('sort_order', { ascending: true }),
+        supabase.from('pricing_rules').select('*').order('sort_order', { ascending: true }),
       ]);
       if (!active) return;
       setTables((t.data || []).map(rowToTable));
@@ -124,6 +135,7 @@ export function ShotsProvider({ children }) {
       setTableTypes((tt.data || []).map(rowToTableType));
       setBookingDurations((bd.data || []).map(rowToBookingDuration));
       setExpenseCategories((ec.data || []).map(rowToExpenseCategory));
+      setPricingRules((pr.data || []).map(rowToPricingRule));
       setReady(true);
     })();
     return () => { active = false; };
@@ -172,6 +184,10 @@ export function ShotsProvider({ children }) {
       expense_categories: async () => {
         const { data } = await supabase.from('expense_categories').select('*').order('sort_order', { ascending: true });
         setExpenseCategories((data || []).map(rowToExpenseCategory));
+      },
+      pricing_rules: async () => {
+        const { data } = await supabase.from('pricing_rules').select('*').order('sort_order', { ascending: true });
+        setPricingRules((data || []).map(rowToPricingRule));
       },
     };
 
@@ -355,12 +371,28 @@ export function ShotsProvider({ children }) {
     return tt;
   }, [businessId, tableTypes]);
 
+  // Renaming a type carries the name over to the tables and the prices that
+  // reference it — both store the type as text, so without this a rename would
+  // silently orphan every price set for that type.
   const updateTableType = useCallback(async (id, name) => {
+    const clean = (name || '').trim();
+    const previous = tableTypes.find((t) => t.id === id)?.name;
     const { data: updated, error } = await supabase
-      .from('table_types').update({ name: (name || '').trim() }).eq('id', id).select().single();
+      .from('table_types').update({ name: clean }).eq('id', id).select().single();
     if (error) { console.error('updateTableType', error); throw error; }
     setTableTypes((arr) => arr.map((t) => (t.id === id ? rowToTableType(updated) : t)));
-  }, []);
+
+    if (previous && previous !== clean) {
+      const [t, p] = await Promise.all([
+        supabase.from('pool_tables').update({ type: clean }).eq('business_id', businessId).eq('type', previous),
+        supabase.from('pricing_rules').update({ table_type: clean }).eq('business_id', businessId).eq('table_type', previous),
+      ]);
+      if (t.error) console.error('updateTableType: tables', t.error);
+      if (p.error) console.error('updateTableType: prices', p.error);
+      setTables((arr) => arr.map((x) => (x.type === previous ? { ...x, type: clean } : x)));
+      setPricingRules((arr) => arr.map((r) => (r.tableType === previous ? { ...r, tableType: clean } : r)));
+    }
+  }, [businessId, tableTypes]);
 
   const deleteTableType = useCallback(async (id) => {
     const { error } = await supabase.from('table_types').delete().eq('id', id);
@@ -421,8 +453,39 @@ export function ShotsProvider({ children }) {
     setExpenseCategories((arr) => arr.filter((c) => c.id !== id));
   }, []);
 
+  // ---- Pricing rules -------------------------------------------------------
+  // One row per selectable price option: (table type, mode, player tier).
+  const addPricingRule = useCallback(async (data) => {
+    const row = {
+      ...toRow(data, PRICING_RULE_KEYS),
+      players: Number(data.players) || 0,
+      member_price: Number(data.memberPrice) || 0,
+      non_member_price: Number(data.nonMemberPrice) || 0,
+      business_id: businessId,
+    };
+    const { data: inserted, error } = await supabase.from('pricing_rules').insert(row).select().single();
+    if (error) { console.error('addPricingRule', error); throw error; }
+    const pr = rowToPricingRule(inserted);
+    setPricingRules((arr) => [...arr, pr]);
+    return pr;
+  }, [businessId]);
+
+  const updatePricingRule = useCallback(async (id, patch) => {
+    const { data: updated, error } = await supabase
+      .from('pricing_rules').update(toRow(patch, PRICING_RULE_KEYS)).eq('id', id).select().single();
+    if (error) { console.error('updatePricingRule', error); throw error; }
+    setPricingRules((arr) => arr.map((r) => (r.id === id ? rowToPricingRule(updated) : r)));
+  }, []);
+
+  const deletePricingRule = useCallback(async (id) => {
+    const { error } = await supabase.from('pricing_rules').delete().eq('id', id);
+    if (error) { console.error('deletePricingRule', error); throw error; }
+    setPricingRules((arr) => arr.filter((r) => r.id !== id));
+  }, []);
+
   const value = useMemo(() => ({
-    tables, members, bookings, finance, staff, tiers, tableTypes, bookingDurations, expenseCategories, ready,
+    tables, members, bookings, finance, staff, tiers, tableTypes, bookingDurations,
+    expenseCategories, pricingRules, ready,
     addTable, updateTable, deleteTable,
     addMember, updateMember, deleteMember,
     addBooking, updateBooking, deleteBooking,
@@ -432,8 +495,10 @@ export function ShotsProvider({ children }) {
     addTableType, updateTableType, deleteTableType,
     addBookingDuration, updateBookingDuration, deleteBookingDuration,
     addExpenseCategory, updateExpenseCategory, deleteExpenseCategory,
+    addPricingRule, updatePricingRule, deletePricingRule,
   }), [
-    tables, members, bookings, finance, staff, tiers, tableTypes, bookingDurations, expenseCategories, ready,
+    tables, members, bookings, finance, staff, tiers, tableTypes, bookingDurations,
+    expenseCategories, pricingRules, ready,
     addTable, updateTable, deleteTable,
     addMember, updateMember, deleteMember,
     addBooking, updateBooking, deleteBooking,
@@ -443,6 +508,7 @@ export function ShotsProvider({ children }) {
     addTableType, updateTableType, deleteTableType,
     addBookingDuration, updateBookingDuration, deleteBookingDuration,
     addExpenseCategory, updateExpenseCategory, deleteExpenseCategory,
+    addPricingRule, updatePricingRule, deletePricingRule,
   ]);
 
   return <ShotsContext.Provider value={value}>{children}</ShotsContext.Provider>;

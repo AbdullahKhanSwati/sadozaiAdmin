@@ -5,6 +5,7 @@ import Login from './pages/Login.jsx';
 import AdminLayout from './components/AdminLayout.jsx';
 import Dashboard from './pages/shots/Dashboard.jsx';
 import Tables from './pages/shots/Tables.jsx';
+import Pricing from './pages/shots/Pricing.jsx';
 import Bookings from './pages/shots/Bookings.jsx';
 import Memberships from './pages/shots/Memberships.jsx';
 import MemberDetail from './pages/shots/MemberDetail.jsx';
@@ -118,6 +119,7 @@ function Shell() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="tables" element={<Tables />} />
+        <Route path="pricing" element={<Pricing />} />
         <Route path="bookings" element={<Bookings />} />
         <Route path="memberships" element={<Memberships />} />
         <Route path="memberships/:id" element={<MemberDetail />} />

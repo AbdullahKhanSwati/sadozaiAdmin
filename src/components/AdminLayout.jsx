@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  ChevronsLeft, ChevronsRight, Grid3X3, LayoutDashboard,
+  ChevronsLeft, ChevronsRight, Coins, Grid3X3, LayoutDashboard,
   LogOut, Menu, Receipt, Settings as SettingsIcon,
   Users, X, Calendar, Briefcase,
 } from 'lucide-react';
@@ -11,6 +11,7 @@ const navItems = [
   { to: '/admin/dashboard',   label: 'Dashboard',    icon: LayoutDashboard },
   { to: '/admin/tables',      label: 'Tables',       icon: Grid3X3 },
   { to: '/admin/bookings',    label: 'Bookings',     icon: Calendar },
+  { to: '/admin/pricing',     label: 'Pricing',      icon: Coins },
   { to: '/admin/memberships', label: 'Memberships',  icon: Users },
   { to: '/admin/expenses',    label: 'Expenses',     icon: Receipt },
   { to: '/admin/staff',       label: 'Staff',        icon: Briefcase },

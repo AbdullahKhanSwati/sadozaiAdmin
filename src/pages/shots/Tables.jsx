@@ -3,6 +3,7 @@ import {
   Calendar, Edit3, Grid3X3, Plus, Search, Sparkles, Tags, Wrench,
 } from 'lucide-react';
 import { rupees } from '../../data/shotsData.js';
+import { modesForType, rulesFor, tierLabel, unitSuffix } from '../../data/pricing.js';
 import { FilterChips, PageHeader, StatCard, StatusPill, EmptyState } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
 import TableDialog from '../../components/dialogs/TableDialog.jsx';
@@ -16,7 +17,7 @@ const STATUS_FILTERS = (list) => [
 ];
 
 export default function Tables() {
-  const { tables, tableTypes } = useShots();
+  const { tables, tableTypes, pricingRules } = useShots();
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('All');
   const [type, setType] = useState('All');
@@ -101,6 +102,7 @@ export default function Tables() {
             <TableCard
               key={t.id}
               t={t}
+              pricingRules={pricingRules}
               onEdit={() => setTableDialog({ open: true, table: t })}
               onBook={() => setBookingDialog({ open: true, table: t })}
             />
@@ -124,7 +126,8 @@ export default function Tables() {
   );
 }
 
-function TableCard({ t, onEdit, onBook }) {
+function TableCard({ t, onEdit, onBook, pricingRules = [] }) {
+  const modes = modesForType(pricingRules, t.type);
   return (
     <div className="card card-hover p-0 relative overflow-hidden">
       {/* Photo / placeholder header */}
@@ -148,14 +151,41 @@ function TableCard({ t, onEdit, onBook }) {
         <h4 className="font-extrabold text-lg">{t.type}</h4>
 
         <div className="grid grid-cols-2 gap-3 mt-3">
-          <div className="rounded-xl bg-slate-50 p-3">
-            <div className="text-[10px] uppercase tracking-widest text-ink-400 font-bold">Member rate</div>
-            <div className="font-extrabold text-ink-800 mt-0.5">{rupees(t.memberRate)} <span className="text-xs text-ink-500 font-medium">/ hr</span></div>
-          </div>
-          <div className="rounded-xl bg-slate-50 p-3">
-            <div className="text-[10px] uppercase tracking-widest text-ink-400 font-bold">Non-member</div>
-            <div className="font-extrabold text-ink-800 mt-0.5">{rupees(t.nonMemberRate)} <span className="text-xs text-ink-500 font-medium">/ hr</span></div>
-          </div>
+          {modes.length > 0 ? (
+            <div className="rounded-xl bg-slate-50 p-3 col-span-2 space-y-1.5">
+              <div className="text-[10px] uppercase tracking-widest text-ink-400 font-bold">{t.type} rates</div>
+              {modes.map((m) => {
+                const list = rulesFor(pricingRules, t.type, m.value);
+                return (
+                  <div key={m.value} className="flex items-start justify-between gap-3 text-sm">
+                    <span className="text-ink-500 font-semibold shrink-0">{m.label}</span>
+                    <span className="text-right font-extrabold text-ink-800">
+                      {list.map((r) => {
+                        const tier = tierLabel(r, list);
+                        return (
+                          <span key={r.id} className="block leading-tight">
+                            {rupees(r.memberPrice)} <span className="text-[11px] text-ink-500 font-medium">{unitSuffix(m.value)}</span>
+                            {tier && <span className="text-[11px] text-ink-400 font-medium"> · {tier}</span>}
+                          </span>
+                        );
+                      })}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <>
+              <div className="rounded-xl bg-slate-50 p-3">
+                <div className="text-[10px] uppercase tracking-widest text-ink-400 font-bold">Member rate</div>
+                <div className="font-extrabold text-ink-800 mt-0.5">{rupees(t.memberRate)} <span className="text-xs text-ink-500 font-medium">/ hr</span></div>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3">
+                <div className="text-[10px] uppercase tracking-widest text-ink-400 font-bold">Non-member</div>
+                <div className="font-extrabold text-ink-800 mt-0.5">{rupees(t.nonMemberRate)} <span className="text-xs text-ink-500 font-medium">/ hr</span></div>
+              </div>
+            </>
+          )}
           <div className="rounded-xl bg-slate-50 p-3 col-span-2">
             <div className="text-[10px] uppercase tracking-widest text-ink-400 font-bold">Hours</div>
             <div className="text-sm text-ink-700 mt-0.5 font-semibold">{t.openTime} – {t.closeTime}</div>

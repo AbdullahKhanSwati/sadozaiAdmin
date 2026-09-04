@@ -168,12 +168,18 @@ export default function TableDialog({ open, onClose, table }) {
             )}
           </Field>
 
-          <Field label="Member rate (Rs / hr)">
+          <Field label="Fallback member rate (Rs / hr)">
             <input className="input" type="number" value={form.memberRate} onChange={(e) => setField('memberRate', e.target.value)} />
           </Field>
-          <Field label="Non-member rate (Rs / hr)">
+          <Field label="Fallback non-member rate (Rs / hr)">
             <input className="input" type="number" value={form.nonMemberRate} onChange={(e) => setField('nonMemberRate', e.target.value)} />
           </Field>
+
+          <p className="col-span-2 text-[11px] text-ink-500 -mt-1">
+            Per-minute, per-game and per-hour prices are set by table type on the{' '}
+            <span className="font-semibold">Pricing</span> page. These hourly rates are only used
+            for table types that have no prices there yet.
+          </p>
 
           <Field label="Open">
             <input className="input" type="time" value={form.openTime} onChange={(e) => setField('openTime', e.target.value)} />

@@ -1,21 +1,32 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle, Calendar, Check, Coins, Grid3X3, Percent, Plus, Save,
-  Search, Trash2, User, Users, X,
+  AlertTriangle, Calendar, Check, Clock, Coins, Gamepad2, Grid3X3, Minus, Percent,
+  Plus, Save, Search, Timer, Trash2, User, Users, X,
 } from 'lucide-react';
 import {
   addMinutes, bookedIntervalsFor, buildIntervals, dateKey,
   intervalsForRange, nextSevenDays, rupees, minutesToLabel,
 } from '../../data/shotsData.js';
+import {
+  computeCharge, gameMinutes, minMinutes, modesForType, pickRule, playersAllowed,
+  priceOf, ruleConstraints, rulesFor, slotsForMinutes, tierLabel, unitSuffix,
+} from '../../data/pricing.js';
 import { useShots } from '../../store/ShotsStore.jsx';
 
 const MAX_MEMBERS = 4;
+const MAX_PLAYERS = 8;
+const MODE_ICON = { minute: Timer, game: Gamepad2, hour: Clock };
+const MINUTE_PRESETS = [10, 15, 20, 30, 45, 60, 90];
 
 const blankPicker = (defaults) => ({
   tableId: defaults?.tableId || null,
   date: defaults?.date || dateKey(new Date()),
   start: defaults?.start || '11:00',
   durationMin: 60, // 1 hr
+  mode: null,      // resolved from the table type's configured pricing modes
+  players: 2,
+  games: 1,
+  minutes: 30,     // per-minute mode
   isMember: true,
   members: [],
   guestName: '',
@@ -26,7 +37,9 @@ const blankPicker = (defaults) => ({
 });
 
 export default function BookingDialog({ open, onClose, booking, defaults }) {
-  const { tables, members, bookings, bookingDurations, addBooking, updateBooking } = useShots();
+  const {
+    tables, members, bookings, bookingDurations, pricingRules, addBooking, updateBooking,
+  } = useShots();
   const editing = !!booking;
   const [form, setForm] = useState(() => blankPicker(defaults));
   const [error, setError] = useState('');
@@ -50,6 +63,10 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
         date: booking.date,
         start: booking.start,
         durationMin: durations.some((d) => d.minutes === mins) ? mins : defaultMin,
+        mode: booking.pricingMode || null,
+        players: Math.min(MAX_PLAYERS, Math.max(1, Number(booking.players) || 2)),
+        games: booking.pricingMode === 'game' ? Math.max(1, Math.round(Number(booking.units) || 1)) : 1,
+        minutes: booking.pricingMode === 'minute' ? (Number(booking.durationMinutes) || 30) : 30,
         isMember: booking.isMember !== false,
         members: booking.members?.map((m) => ({ id: m.id, name: m.name, type: m.type })) || (booking.memberId ? [{ id: booking.memberId, name: booking.memberName, type: booking.memberType }] : []),
         guestName: !booking.isMember ? booking.memberName : '',
@@ -69,16 +86,72 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
 
   const table = useMemo(() => tables.find((t) => t.id === form.tableId), [tables, form.tableId]);
   const duration = durations.find((d) => d.minutes === form.durationMin) || durations[0];
-  const endValue = useMemo(() => (form.start && duration ? addMinutes(form.start, duration.minutes) : ''), [form.start, duration]);
-  const intervals = useMemo(() => (form.start && duration ? intervalsForRange(form.start, duration.minutes) : []), [form.start, duration]);
+  // ---- Pricing ------------------------------------------------------------
+  // Modes and prices per table type come from the Pricing page. A table type
+  // with no rules keeps its legacy per-table hourly rates.
+  const availableModes = useMemo(
+    () => modesForType(pricingRules, table?.type),
+    [pricingRules, table?.type]
+  );
+  const legacyPricing = availableModes.length === 0;
+  const activeMode = useMemo(() => {
+    if (legacyPricing) return 'hour';
+    return availableModes.some((m) => m.value === form.mode) ? form.mode : availableModes[0].value;
+  }, [legacyPricing, availableModes, form.mode]);
+
+  const modeRules = useMemo(
+    () => rulesFor(pricingRules, table?.type, activeMode),
+    [pricingRules, table?.type, activeMode]
+  );
+  const rule = useMemo(
+    () => pickRule(pricingRules, table?.type, activeMode, form.players),
+    [pricingRules, table?.type, activeMode, form.players]
+  );
+
+  const requestedMinutes = useMemo(() => {
+    if (legacyPricing || activeMode === 'hour') return duration?.minutes || 0;
+    if (activeMode === 'minute') return Math.max(0, Math.round(Number(form.minutes) || 0));
+    return Math.max(1, Number(form.games) || 1) * gameMinutes(rule);
+  }, [legacyPricing, activeMode, duration, form.minutes, form.games, rule]);
+
+  const charge = useMemo(() => {
+    if (legacyPricing) {
+      const legacyRate = table ? Number(form.isMember ? table.memberRate : table.nonMemberRate) || 0 : 0;
+      const mins = duration?.minutes || 0;
+      return {
+        subtotal: Math.round((legacyRate * mins) / 60),
+        unitPrice: legacyRate,
+        units: Number((mins / 60).toFixed(2)),
+        durationMinutes: mins,
+        unitLabel: 'hr',
+        label: `Per hour · ${mins} min`,
+        error: null,
+      };
+    }
+    return computeCharge({
+      mode: activeMode, rule, isMember: form.isMember,
+      minutes: requestedMinutes, games: form.games,
+    });
+  }, [legacyPricing, table, form.isMember, form.games, duration, activeMode, rule, requestedMinutes]);
+
+  const billedMinutes = charge.durationMinutes || 0;
+
+  const endValue = useMemo(
+    () => (form.start && billedMinutes ? addMinutes(form.start, Math.max(15, billedMinutes)) : ''),
+    [form.start, billedMinutes]
+  );
+  const intervals = useMemo(
+    () => (form.start && billedMinutes ? intervalsForRange(form.start, slotsForMinutes(billedMinutes) * 15) : []),
+    [form.start, billedMinutes]
+  );
   const existingBooked = useMemo(() => {
     if (!table) return new Set();
     return bookedIntervalsFor(bookings, table.id, form.date, editing ? booking.id : null);
   }, [bookings, table, form.date, editing, booking]);
   const conflict = intervals.some((iv) => existingBooked.has(iv));
 
-  const rate = table ? (form.isMember ? table.memberRate : table.nonMemberRate) : 0;
-  const subtotal = Math.round((rate * (duration?.minutes || 0)) / 60);
+  const subtotal = charge.subtotal;
+  const rate = charge.unitPrice;
   const discountAmount = useMemo(() => {
     const v = Number(form.discountValue) || 0;
     if (form.discountType === 'percent') return Math.round(subtotal * (v / 100));
@@ -106,7 +179,16 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
     setError('');
     if (!table) return setError('Pick a table.');
     if (!editing && table.status === 'Maintenance') return setError('This table is under maintenance and cannot be booked.');
-    if (!duration) return setError('No booking durations are set up. Add them in Settings → Booking durations.');
+    if ((legacyPricing || activeMode === 'hour') && !duration) {
+      return setError('No booking durations are set up. Add them in Settings → Booking durations.');
+    }
+    if (!legacyPricing && !rule) {
+      return setError(`No ${activeMode} price is configured for ${table.type} tables — set one on the Pricing page.`);
+    }
+    if (rule && !playersAllowed(rule, form.players)) {
+      return setError(`This rate is ${ruleConstraints(rule) || 'limited'} — change the player count or pick another pricing mode.`);
+    }
+    if (billedMinutes <= 0) return setError('Enter how long this booking runs for.');
     if (conflict) return setError('Selected duration overlaps an existing booking — pick a shorter duration or different start.');
     if (form.isMember && form.members.length === 0) return setError('Pick at least one member for this booking.');
     if (!form.isMember && !form.guestName) return setError('Enter the guest name.');
@@ -118,7 +200,7 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
       start: form.start,
       end: endValue,
       intervals,
-      players: form.isMember ? Math.max(form.members.length, 1) : 1,
+      players: Math.max(1, Number(form.players) || 1),
       isMember: form.isMember,
       members: form.isMember ? form.members : [],
       memberType: form.isMember ? form.members[0]?.type : null,
@@ -129,6 +211,12 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
         ? { type: form.discountType, value: Number(form.discountValue), amount: discountAmount, reason: form.discountReason || null }
         : null,
       amount: total,
+      pricingMode: legacyPricing ? 'hour' : activeMode,
+      pricingRuleId: rule?.id ?? null,
+      pricingLabel: charge.label,
+      unitPrice: charge.unitPrice,
+      units: charge.units,
+      durationMinutes: billedMinutes,
     };
 
     if (editing) {
@@ -264,9 +352,108 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
               )}
             </Section>
 
-            {/* Duration — only the options configured in Settings */}
-            <Section label="Duration">
-              {durations.length === 0 ? (
+            {/* Pricing mode — the options priced for this table type */}
+            {!legacyPricing && (
+              <Section label="Pricing" icon={<Coins className="w-4 h-4" />} hint={table ? table.type : ''}>
+                <div className="grid grid-cols-3 gap-2">
+                  {availableModes.map((m) => {
+                    const Icon = MODE_ICON[m.value] || Coins;
+                    const active = activeMode === m.value;
+                    const r = pickRule(pricingRules, table?.type, m.value, form.players);
+                    const unit = priceOf(r, form.isMember);
+                    return (
+                      <button
+                        key={m.value}
+                        type="button"
+                        onClick={() => setField('mode', m.value)}
+                        className={[
+                          'rounded-xl px-2 py-2.5 border text-center transition',
+                          active ? 'bg-ink-900 text-white border-ink-900' : 'bg-white border-slate-200 hover:bg-slate-50 text-ink-700',
+                        ].join(' ')}
+                      >
+                        <Icon className="w-4 h-4 mx-auto mb-1" />
+                        <div className="text-xs font-extrabold">{m.short}</div>
+                        <div className={['text-[10px] font-bold', active ? 'opacity-80' : 'text-ink-400'].join(' ')}>
+                          {unit ? `${rupees(unit)} ${unitSuffix(m.value)}` : '—'}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-ink-500 mt-2">
+                  {availableModes.find((m) => m.value === activeMode)?.hint}
+                  {ruleConstraints(rule) ? ` · ${ruleConstraints(rule)}` : ''}
+                </p>
+              </Section>
+            )}
+
+            {/* Players — decides which price tier applies */}
+            <Section
+              label="Players"
+              icon={<Users className="w-4 h-4" />}
+              hint={rule ? tierLabel(rule, modeRules) || '' : ''}
+            >
+              <Stepper
+                value={form.players}
+                min={1}
+                max={MAX_PLAYERS}
+                unit={form.players === 1 ? 'player' : 'players'}
+                onChange={(v) => setField('players', v)}
+              />
+              {rule && !playersAllowed(rule, form.players) && (
+                <div className="mt-2 flex items-start gap-2 rounded-lg bg-rose-50 border border-rose-100 px-3 py-2 text-xs text-rose-700">
+                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5" />
+                  This rate is {ruleConstraints(rule) || 'limited'} — change the count or pick another mode.
+                </div>
+              )}
+            </Section>
+
+            {/* Duration / games — depends on the pricing mode */}
+            <Section label={activeMode === 'game' && !legacyPricing ? 'Games' : 'Duration'}>
+              {activeMode === 'minute' && !legacyPricing ? (
+                <>
+                  <div className="flex flex-wrap gap-1.5">
+                    {MINUTE_PRESETS.filter((m) => m >= minMinutes(rule)).map((m) => {
+                      const active = Number(form.minutes) === m;
+                      return (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setField('minutes', m)}
+                          className={[
+                            'px-3 py-1.5 rounded-full text-xs font-bold border',
+                            active ? 'bg-ink-900 text-white border-ink-900' : 'bg-white border-slate-200 text-ink-600 hover:bg-slate-50',
+                          ].join(' ')}
+                        >
+                          {m} min
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <input
+                    type="number"
+                    className="input mt-2"
+                    min={minMinutes(rule)}
+                    placeholder={`Exact minutes (min ${minMinutes(rule)})`}
+                    value={form.minutes}
+                    onChange={(e) => setField('minutes', e.target.value)}
+                  />
+                  {charge.error && <p className="text-[11px] font-semibold text-amber-600 mt-1">{charge.error}</p>}
+                </>
+              ) : activeMode === 'game' && !legacyPricing ? (
+                <>
+                  <Stepper
+                    value={form.games}
+                    min={1}
+                    max={12}
+                    unit={Number(form.games) === 1 ? 'game' : 'games'}
+                    onChange={(v) => setField('games', v)}
+                  />
+                  <p className="text-[11px] text-ink-500 mt-2">
+                    Each game runs up to {gameMinutes(rule)} min · table held for {billedMinutes} min.
+                  </p>
+                </>
+              ) : durations.length === 0 ? (
                 <p className="text-xs text-ink-500">
                   No booking durations set up yet. Add them in <span className="font-semibold">Settings → Booking durations</span>.
                 </p>
@@ -410,7 +597,8 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
                 <div className="text-[11px] uppercase tracking-widest font-bold opacity-85">Booking summary</div>
                 <div className="text-xs opacity-90 mt-2">{dateLabel} · {form.start} – {endValue}</div>
                 <div className="mt-3 space-y-1 text-sm">
-                  <Row label="Rate" value={`${rupees(rate)} / hr`} />
+                  <Row label="Rate" value={`${rupees(rate)} ${legacyPricing ? '/ hr' : unitSuffix(activeMode)}`} />
+                  <Row label="Charged" value={`${charge.units} ${charge.unitLabel}`} />
                   <Row label="Subtotal" value={rupees(subtotal)} />
                   {discountAmount > 0 && <Row label={`Discount ${form.discountType === 'percent' ? `(${form.discountValue}%)` : ''}`} value={`− ${rupees(discountAmount)}`} />}
                 </div>
@@ -453,6 +641,34 @@ function Section({ label, hint, icon, children }) {
         {hint && <div className="text-[11px] text-ink-400 font-medium">{hint}</div>}
       </div>
       {children}
+    </div>
+  );
+}
+
+function Stepper({ value, min = 1, max = 10, unit, onChange }) {
+  const v = Math.max(min, Math.min(max, Number(value) || min));
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        type="button"
+        onClick={() => onChange(Math.max(min, v - 1))}
+        disabled={v <= min}
+        className="w-10 h-10 rounded-xl border border-slate-200 flex items-center justify-center hover:bg-slate-50 disabled:opacity-40"
+      >
+        <Minus className="w-4 h-4" />
+      </button>
+      <div className="flex-1 text-center">
+        <div className="text-2xl font-extrabold leading-none">{v}</div>
+        <div className="text-[11px] uppercase tracking-widest text-ink-400 font-bold mt-1">{unit}</div>
+      </div>
+      <button
+        type="button"
+        onClick={() => onChange(Math.min(max, v + 1))}
+        disabled={v >= max}
+        className="w-10 h-10 rounded-xl border border-slate-200 flex items-center justify-center hover:bg-slate-50 disabled:opacity-40"
+      >
+        <Plus className="w-4 h-4" />
+      </button>
     </div>
   );
 }
