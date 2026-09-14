@@ -3,21 +3,32 @@ import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { ReportToolbar, Panel, ExportBar, ChartSelect, usePagination, TablePagination } from './munchiesUi.jsx';
+import { ReportToolbar, Panel, ExportBar, ChartSelect, usePagination, TablePagination, defaultRange, rangeLabel } from './munchiesUi.jsx';
 import { ITEM_CHART_TYPES, GRANULARITY_OPTIONS, rs, rsAxis } from '../../data/munchiesData.js';
-import { useMunchies } from '../../store/MunchiesStore.jsx';
+import { useReports } from '../../store/MunchiesStore.jsx';
+import { downloadCsv, csvDate } from '../../lib/csv.js';
 
 export default function SalesByItem() {
-  const { reports } = useMunchies();
+  const [range, setRange] = useState(defaultRange);
+  const reports = useReports(range);
   const { topItems, itemPie, itemRows } = reports;
   const [chartType, setChartType] = useState('Bar');
-  const [granularity, setGranularity] = useState('Weeks');
+  const [granularity, setGranularity] = useState('Days');
   const data = reports.itemSeries(granularity);
   const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(itemRows, 10);
+  const onExport = () => downloadCsv(`munchies-sales-by-item-${csvDate()}.csv`, [
+    { label: 'Code', value: 'code' },
+    { label: 'Item', value: 'name' },
+    { label: 'Category', value: 'category' },
+    { label: 'Items sold', value: (r) => r.sold || 0 },
+    { label: 'Gross sales', value: (r) => r.gross || 0 },
+    { label: 'Discounts', value: (r) => r.discount || 0 },
+    { label: 'Net sales', value: (r) => r.net || 0 },
+  ], itemRows);
 
   return (
     <div className="max-w-[1400px] mx-auto">
-      <ReportToolbar />
+      <ReportToolbar range={range} onRange={setRange} />
 
       <Panel className="mb-4">
         <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
@@ -29,7 +40,7 @@ export default function SalesByItem() {
             </div>
             <ul className="space-y-4">
               {topItems.map((it) => (
-                <li key={it.code} className="flex items-center gap-3">
+                <li key={`${it.code}|${it.name}`} className="flex items-center gap-3">
                   <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: it.color }} />
                   <span className="flex-1 text-sm text-ink-700 leading-tight">{it.code} {it.name}</span>
                   <span className="text-sm font-semibold text-ink-800">{rs(it.net)}</span>
@@ -60,7 +71,9 @@ export default function SalesByItem() {
 
       {/* Export table */}
       <Panel>
-        <ExportBar />
+        <ExportBar onExport={onExport}>
+          <span className="hidden sm:inline text-xs font-semibold text-ink-400 whitespace-nowrap">{rangeLabel(range)}</span>
+        </ExportBar>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -75,7 +88,7 @@ export default function SalesByItem() {
             </thead>
             <tbody>
               {pageItems.map((r) => (
-                <tr key={r.code} className="border-t border-slate-100 hover:bg-slate-50/60">
+                <tr key={`${r.code}|${r.name}`} className="border-t border-slate-100 hover:bg-slate-50/60">
                   <td className="px-5 py-3.5 text-ink-700">{r.code} {r.name}</td>
                   <td className="px-5 py-3.5 text-ink-500">{r.category}</td>
                   <td className="px-5 py-3.5 text-right text-ink-700">{r.sold}</td>
@@ -84,6 +97,9 @@ export default function SalesByItem() {
                   <td className="px-5 py-3.5 text-right font-semibold text-ink-800">{rs(r.grossProfit)}</td>
                 </tr>
               ))}
+              {itemRows.length === 0 && (
+                <tr><td colSpan={6} className="px-5 py-10 text-center text-ink-400">No sales in this period.</td></tr>
+              )}
             </tbody>
           </table>
         </div>

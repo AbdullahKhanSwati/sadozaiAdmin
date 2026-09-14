@@ -10,6 +10,7 @@ import {
 import {
   SUMMARY_METRICS, SUMMARY_CHART_TYPES, GRANULARITY_OPTIONS, rs, rsAxis,
 } from '../../data/munchiesData.js';
+import * as XLSX from 'xlsx-js-style';
 import { useMunchies } from '../../store/MunchiesStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
 
@@ -113,13 +114,13 @@ export default function SalesSummary() {
     { label: 'Net profit', value: (r) => r.netProfit || 0 },
   ], periodRows);
 
-  // Every expense of the period, grouped by day + category (one row each).
-  const onExportExpenseBreakdown = () => downloadCsv(`munchies-expenses-by-day-${csvDate()}.csv`, [
-    { label: 'Date', value: (r) => exportDate(r.date) },
-    { label: 'Category', value: 'category' },
-    { label: 'Entries', value: (r) => r.count || 0 },
-    { label: 'Amount', value: (r) => r.amount || 0 },
-  ], periodExpenseRows);
+  // "Export summary": an Excel workbook of exactly what is on screen right now —
+  // the selected period, the metric tab that is open, the chart as configured
+  // (type / days-or-weeks / expenses overlay), the stat cards, the day table
+  // and the period's expenses by category.
+  const onExportSummary = () => exportSummaryXlsx({
+    range, active, chartType, granularity, withExpenses, totals, data, periodRows, periodExpenseRows,
+  });
 
   return (
     <div className="max-w-[1400px] mx-auto">
@@ -193,12 +194,12 @@ export default function SalesSummary() {
             {rangeLabel(range)}
           </span>
           <button
-            onClick={onExportExpenseBreakdown}
-            disabled={!periodExpenseRows.length}
+            onClick={onExportSummary}
+            disabled={!periodRows.length && !periodExpenseRows.length}
             className="text-sm font-bold tracking-wide text-ink-600 hover:text-mun-600 disabled:opacity-40 disabled:hover:text-ink-600"
-            title="Every expense grouped by day and category"
+            title="Download everything shown on this page (selected period, metric, chart and table) as an Excel file"
           >
-            EXPENSE BREAKDOWN
+            EXPORT SUMMARY
           </button>
         </ExportBar>
         <div className="overflow-x-auto">
@@ -283,4 +284,93 @@ function renderSummaryChart(type, data, label, withExpenses) {
       {main}
     </ComposedChart>
   );
+}
+
+// ---- Export summary (.xlsx) ----------------------------------------------
+// Sheet "Summary"     : period, what was selected on screen, the stat cards and
+//                       the chart series exactly as charted.
+// Sheet "Daily"       : the table under the chart (every day of the period).
+// Sheet "Expenses"    : the period's expenses grouped by day and category.
+function exportSummaryXlsx({ range, active, chartType, granularity, withExpenses, totals, data, periodRows, periodExpenseRows }) {
+  const HEADER_FILL = '43A047';
+  const bd = { style: 'thin', color: { rgb: 'BFBFBF' } };
+  const borders = { top: bd, bottom: bd, left: bd, right: bd };
+  const money = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+  const styleSheet = (ws, aoa, { headerRows = [], boldRows = [], cols = [] } = {}) => {
+    const nCols = Math.max(...aoa.map((r) => r.length), 1);
+    ws['!cols'] = cols.length ? cols : Array.from({ length: nCols }, () => ({ wch: 18 }));
+    for (let R = 0; R < aoa.length; R += 1) {
+      for (let C = 0; C < nCols; C += 1) {
+        const ref = XLSX.utils.encode_cell({ r: R, c: C });
+        if (!ws[ref]) continue;
+        const st = { alignment: { vertical: 'center' } };
+        if (typeof ws[ref].v === 'number') st.numFmt = '#,##0.00';
+        if (headerRows.includes(R)) {
+          st.fill = { fgColor: { rgb: HEADER_FILL } };
+          st.font = { bold: true, color: { rgb: 'FFFFFF' } };
+          st.border = borders;
+        } else if (boldRows.includes(R)) {
+          st.font = { bold: true };
+        }
+        ws[ref].s = st;
+      }
+    }
+  };
+
+  const periodText = range?.key === 'all' || (!range?.start && !range?.end)
+    ? 'All time'
+    : `${exportDate(range.start)} - ${exportDate(range.end)}`;
+  const chartTitle = `${active.label}${withExpenses ? ' vs Expenses' : ''}`;
+
+  // --- Sheet 1: Summary ---
+  const summaryRows = [
+    ['Munchies - Sales summary'],
+    ['Period', rangeLabel(range), periodText],
+    ['Exported', new Date().toLocaleString('en-GB')],
+    [],
+    ['Selected metric', active.label],
+    ['Chart', `${chartType} / ${granularity}${withExpenses ? ' / expenses shown' : ''}`],
+    [],
+    ['Metric', 'Amount (Rs)'],
+    ...SUMMARY_METRICS.map((m) => [m.label, money(totals[m.key] ?? 0)]),
+    [],
+    [`Chart data - ${chartTitle} by ${granularity.toLowerCase()}`],
+    [granularity === 'Weeks' ? 'Week' : 'Day', active.label, ...(withExpenses ? ['Expenses'] : [])],
+    ...data.map((d) => [d.bucket, money(d.value), ...(withExpenses ? [money(d.expenses)] : [])]),
+  ];
+  const metricsHeader = 7;
+  const chartHeader = metricsHeader + SUMMARY_METRICS.length + 3;
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+  styleSheet(wsSummary, summaryRows, {
+    headerRows: [metricsHeader, chartHeader],
+    boldRows: [0, chartHeader - 1],
+    cols: [{ wch: 30 }, { wch: 22 }, { wch: 26 }],
+  });
+
+  // --- Sheet 2: Daily table (what the table below the chart shows) ---
+  const sum = (f) => periodRows.reduce((s, r) => s + (r[f] || 0), 0);
+  const dailyRows = [
+    ['Date', 'Gross sales', 'Discounts', 'Net sales', 'Expenses', 'Net profit'],
+    ...periodRows.map((r) => [exportDate(r.date), money(r.gross), money(r.discount), money(r.net), money(r.expenses), money(r.netProfit)]),
+    ['Total', money(sum('gross')), money(sum('discount')), money(sum('net')), money(sum('expenses')), money(sum('netProfit'))],
+  ];
+  const wsDaily = XLSX.utils.aoa_to_sheet(dailyRows);
+  styleSheet(wsDaily, dailyRows, { headerRows: [0], boldRows: [dailyRows.length - 1], cols: [{ wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }] });
+
+  // --- Sheet 3: Expenses by day + category ---
+  const expRows = [
+    ['Date', 'Category', 'Entries', 'Amount'],
+    ...periodExpenseRows.map((r) => [exportDate(r.date), r.category, r.count || 0, money(r.amount)]),
+    ['Total', '', periodExpenseRows.reduce((s, r) => s + (r.count || 0), 0), money(periodExpenseRows.reduce((s, r) => s + (r.amount || 0), 0))],
+  ];
+  const wsExp = XLSX.utils.aoa_to_sheet(expRows);
+  styleSheet(wsExp, expRows, { headerRows: [0], boldRows: [expRows.length - 1], cols: [{ wch: 14 }, { wch: 24 }, { wch: 10 }, { wch: 14 }] });
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+  XLSX.utils.book_append_sheet(wb, wsDaily, 'Daily');
+  XLSX.utils.book_append_sheet(wb, wsExp, 'Expenses');
+  const tag = range?.start && range?.end ? `${range.start}_to_${range.end}` : 'all-time';
+  XLSX.writeFile(wb, `munchies-summary-${tag}-${csvDate()}.xlsx`);
 }

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Ban, ChevronDown, Receipt, ReceiptText, RotateCcw, Search, X } from 'lucide-react';
-import { ReportToolbar, Panel, usePagination, TablePagination } from './munchiesUi.jsx';
+import { ReportToolbar, Panel, usePagination, TablePagination, defaultRange, rangeLabel } from './munchiesUi.jsx';
 import { rs } from '../../data/munchiesData.js';
-import { useMunchies } from '../../store/MunchiesStore.jsx';
+import { useMunchies, useReports } from '../../store/MunchiesStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
 
 const TABS = [
@@ -34,7 +34,11 @@ function discountRowsFor(d) {
 }
 
 export default function Receipts() {
-  const { reports, cancelReceipt, restoreReceipt } = useMunchies();
+  const { cancelReceipt, restoreReceipt } = useMunchies();
+  // Month to date by default; the picker in the toolbar changes it, and every
+  // count, row and export below follows the selected period.
+  const [range, setRange] = useState(defaultRange);
+  const reports = useReports(range);
   const { receiptStats, receiptRows, receiptLineRows, receiptById } = reports;
   const [tab, setTab] = useState('all');
   const [q, setQ] = useState('');
@@ -67,6 +71,9 @@ export default function Receipts() {
     { label: 'Type', value: 'type' },
     { label: 'Status', value: 'status' },
     { label: 'Cancel reason', value: 'cancelReason' },
+    { label: 'Gross', value: (r) => r.gross || 0 },
+    { label: 'Discount', value: (r) => r.discount || 0 },
+    { label: 'Discount name', value: 'discountName' },
     { label: 'Total', value: (r) => r.total || 0 },
   ], rows);
 
@@ -94,6 +101,7 @@ export default function Receipts() {
       { label: 'Discount', value: (l) => l.discount || 0 },
       { label: 'Discount name', value: 'discountName' },
       { label: 'Net total', value: (l) => l.netTotal || 0 },
+      { label: 'Receipt discount', value: (l) => l.receiptDiscount || 0 },
       { label: 'Receipt total', value: (l) => l.receiptTotal || 0 },
     ], lines);
   };
@@ -129,7 +137,7 @@ export default function Receipts() {
 
   return (
     <div className="max-w-[1400px] mx-auto">
-      <ReportToolbar />
+      <ReportToolbar range={range} onRange={setRange} />
 
       {/* Tabs */}
       <Panel className="mb-4">
@@ -209,6 +217,7 @@ export default function Receipts() {
                 <th className="text-left font-medium px-5 py-3">Employee</th>
                 <th className="text-left font-medium px-5 py-3">Customer</th>
                 <th className="text-left font-medium px-5 py-3">Type</th>
+                <th className="text-right font-medium px-5 py-3">Discount</th>
                 <th className="text-right font-medium px-5 py-3">Total</th>
                 <th className="text-right font-medium px-5 py-3">Actions</th>
               </tr>
@@ -228,6 +237,9 @@ export default function Receipts() {
                   <td className="px-5 py-4 text-ink-700">{r.employee}</td>
                   <td className="px-5 py-4 text-ink-400">{r.customer}</td>
                   <td className="px-5 py-4 text-ink-700">{r.type}</td>
+                  <td className="px-5 py-4 text-right text-mun-700 whitespace-nowrap" title={r.discountName || ''}>
+                    {r.discount > 0 ? `- ${rs(r.discount)}` : <span className="text-ink-300">—</span>}
+                  </td>
                   <td className={['px-5 py-4 text-right font-semibold', r.cancelled ? 'text-ink-400 line-through' : 'text-ink-800'].join(' ')}>
                     {rs(r.total)}
                   </td>
@@ -253,7 +265,7 @@ export default function Receipts() {
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={7} className="px-5 py-10 text-center text-ink-400">No receipts found.</td></tr>
+                <tr><td colSpan={8} className="px-5 py-10 text-center text-ink-400">No receipts for {rangeLabel(range).toLowerCase()}.</td></tr>
               )}
             </tbody>
           </table>
@@ -315,6 +327,12 @@ export default function Receipts() {
                     <div className="text-ink-800 whitespace-nowrap">{rs(l.baseTotal != null ? l.baseTotal : l.lineTotal)}</div>
                   </div>
                 ))}
+                {detail.totalDiscount > 0 && (
+                  <div className="flex justify-between pt-3 mt-1 border-t border-slate-100 text-sm text-ink-500">
+                    <span>Subtotal</span>
+                    <span>{rs(detail.subtotal)}</span>
+                  </div>
+                )}
                 {discountRowsFor(detail).map((d, i) => (
                   <div key={i} className="flex justify-between py-2 text-mun-600">
                     <span>{d.name}</span>

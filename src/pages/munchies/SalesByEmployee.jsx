@@ -1,17 +1,31 @@
-import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination } from './munchiesUi.jsx';
+import { useState } from 'react';
+import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination, defaultRange, rangeLabel } from './munchiesUi.jsx';
 import { rs } from '../../data/munchiesData.js';
-import { useMunchies } from '../../store/MunchiesStore.jsx';
+import { useReports } from '../../store/MunchiesStore.jsx';
+import { downloadCsv, csvDate } from '../../lib/csv.js';
 
 export default function SalesByEmployee() {
-  const { reports } = useMunchies();
+  const [range, setRange] = useState(defaultRange);
+  const reports = useReports(range);
+  const onExport = () => downloadCsv(`munchies-sales-by-employee-${csvDate()}.csv`, [
+    { label: 'Name', value: 'name' },
+    { label: 'Gross sales', value: (r) => r.gross || 0 },
+    { label: 'Refunds', value: (r) => r.refunds || 0 },
+    { label: 'Discounts', value: (r) => r.discounts || 0 },
+    { label: 'Net sales', value: (r) => r.net || 0 },
+    { label: 'Receipts', value: (r) => r.receipts || 0 },
+    { label: 'Average sale', value: (r) => Math.round((r.avgSale || 0) * 100) / 100 },
+  ], reports.employeeRows);
   const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(reports.employeeRows, 10);
 
   return (
     <div className="max-w-[1400px] mx-auto">
-      <ReportToolbar />
+      <ReportToolbar range={range} onRange={setRange} />
 
       <Panel>
-        <ExportBar />
+        <ExportBar onExport={onExport}>
+          <span className="hidden sm:inline text-xs font-semibold text-ink-400 whitespace-nowrap">{rangeLabel(range)}</span>
+        </ExportBar>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -39,6 +53,9 @@ export default function SalesByEmployee() {
                   <td className="px-5 py-4 text-right text-ink-700">{r.signups}</td>
                 </tr>
               ))}
+              {reports.employeeRows.length === 0 && (
+                <tr><td colSpan={8} className="px-5 py-10 text-center text-ink-400">No sales in this period.</td></tr>
+              )}
             </tbody>
           </table>
         </div>

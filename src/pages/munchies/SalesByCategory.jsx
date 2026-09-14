@@ -1,17 +1,29 @@
-import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination } from './munchiesUi.jsx';
+import { useState } from 'react';
+import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination, defaultRange, rangeLabel } from './munchiesUi.jsx';
 import { rs } from '../../data/munchiesData.js';
-import { useMunchies } from '../../store/MunchiesStore.jsx';
+import { useReports } from '../../store/MunchiesStore.jsx';
+import { downloadCsv, csvDate } from '../../lib/csv.js';
 
 export default function SalesByCategory() {
-  const { reports } = useMunchies();
+  const [range, setRange] = useState(defaultRange);
+  const reports = useReports(range);
+  const onExport = () => downloadCsv(`munchies-sales-by-category-${csvDate()}.csv`, [
+    { label: 'Category', value: 'name' },
+    { label: 'Items sold', value: (r) => r.sold || 0 },
+    { label: 'Gross sales', value: (r) => r.gross || 0 },
+    { label: 'Discounts', value: (r) => r.discount || 0 },
+    { label: 'Net sales', value: (r) => r.net || 0 },
+  ], reports.categoryRows);
   const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(reports.categoryRows, 10);
 
   return (
     <div className="max-w-[1400px] mx-auto">
-      <ReportToolbar />
+      <ReportToolbar range={range} onRange={setRange} />
 
       <Panel>
-        <ExportBar />
+        <ExportBar onExport={onExport}>
+          <span className="hidden sm:inline text-xs font-semibold text-ink-400 whitespace-nowrap">{rangeLabel(range)}</span>
+        </ExportBar>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -33,6 +45,9 @@ export default function SalesByCategory() {
                   <td className="px-5 py-4 text-right font-semibold text-ink-800">{rs(r.grossProfit)}</td>
                 </tr>
               ))}
+              {reports.categoryRows.length === 0 && (
+                <tr><td colSpan={5} className="px-5 py-10 text-center text-ink-400">No sales in this period.</td></tr>
+              )}
             </tbody>
           </table>
         </div>

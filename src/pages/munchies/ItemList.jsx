@@ -18,13 +18,13 @@ export default function ItemList() {
 
   const catByName = (name) => categories.find((c) => c.name.toLowerCase() === (name || '').toLowerCase());
 
-  const filtered = items
+  // `items` already comes from the store in menu order (category order, then
+  // item code: "[1 Burgers] 1.1 … [1.9 Fried Chicken] 1.9.1 … [2 Fries] 2.1 …"),
+  // the same order the app's Sales screen uses; the header arrow just flips it.
+  const inOrder = items
     .filter((i) => (cat === 'all' ? true : i.categoryId === cat))
-    .filter((i) => `${i.code} ${i.name}`.toLowerCase().includes(q.toLowerCase()))
-    .sort((a, b) => {
-      const cmp = `${a.name}`.localeCompare(`${b.name}`, undefined, { numeric: true });
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
+    .filter((i) => `${i.code} ${i.name}`.toLowerCase().includes(q.toLowerCase()));
+  const filtered = sortDir === 'asc' ? inOrder : [...inOrder].reverse();
 
   const onExport = () => downloadCsv(`munchies-items-${csvDate()}.csv`,
     [
@@ -32,7 +32,7 @@ export default function ItemList() {
       { label: 'Category', value: (r) => categoryName(r.categoryId) },
       { label: 'Price', value: 'price' }, { label: 'Cost', value: 'cost' },
       { label: 'SKU', value: 'sku' }, { label: 'Barcode', value: 'barcode' },
-    ], items);
+    ], filtered);
 
   const onImport = async (e) => {
     const file = e.target.files?.[0];

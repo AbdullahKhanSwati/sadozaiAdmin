@@ -1,62 +1,129 @@
 // Aggregates real sales (receipts + receipt_lines) into the shapes the report
 // pages render. Pure functions — the store fetches the rows and calls this.
-import { WEEK_BUCKETS } from './munchiesData.js';
+import { compareNatural, sortByOrder } from '../lib/naturalSort.js';
 
 const ITEM_COLORS = ['#607D8B', '#7CB342', '#29B6F6', '#EC407A', '#FDD835', '#8E24AA', '#26A69A', '#FF7043'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-const isoDate = (ts) => (ts ? String(ts).slice(0, 10) : '');
+const pad2 = (n) => String(n).padStart(2, '0');
+
+// Timestamps come back from Supabase in UTC. Every date/time the reports show
+// or filter on is the LOCAL day/time (same as the app and the printed receipt),
+// so a sale rung up at 20:20 lands on that day, not on the UTC one.
+const toDate = (ts) => {
+  if (!ts) return null;
+  const d = ts instanceof Date ? ts : new Date(ts);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+export const isoDate = (ts) => {
+  const d = toDate(ts);
+  return d ? `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` : '';
+};
+const timeLabel = (ts) => {
+  const d = toDate(ts);
+  return d ? `${pad2(d.getHours())}:${pad2(d.getMinutes())}` : '';
+};
+// Plain calendar dates (expenses.spent_on = 'YYYY-MM-DD') are used as-is.
+const isoDay = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : isoDate(v));
 const dayLabel = (iso) => {
   const [y, m, d] = iso.split('-').map(Number);
   if (!y) return iso;
-  return `${String(d).padStart(2, '0')} ${MONTHS[m - 1]}`;
+  return `${pad2(d)} ${MONTHS[m - 1]}`;
 };
 const dateTimeLabel = (ts) => {
   const iso = isoDate(ts);
-  const time = String(ts).slice(11, 16);
-  return `${dayLabel(iso)} ${iso.slice(0, 4)}${time ? ' ' + time : ''}`;
+  const time = timeLabel(ts);
+  return iso ? `${dayLabel(iso)} ${iso.slice(0, 4)}${time ? ' ' + time : ''}` : '';
 };
-const timeLabel = (ts) => String(ts).slice(11, 16);
 const num = (v) => Number(v) || 0;
 const metricCard = (value) => ({ value, delta: 0, trend: 0, betterWhenUp: true });
 
 // A cancelled order stays in the list (audit trail) but counts for nothing.
 export const isCancelled = (r) => (r?.status || 'completed') === 'cancelled';
 
+// Is an ISO day inside the range? Empty / 'all' means everything.
+export const inRange = (iso, range) => {
+  if (!range || range.key === 'all' || (!range.start && !range.end)) return true;
+  if (!iso) return false;
+  return (!range.start || iso >= range.start) && (!range.end || iso <= range.end);
+};
+
+// Monday-based ISO-week buckets over a list of daily rows (oldest first).
+export function weekBuckets(days) {
+  const buckets = new Map();
+  days.forEach((d) => {
+    const dt = new Date(`${d.date}T00:00:00`);
+    const dow = (dt.getDay() + 6) % 7;
+    const monday = new Date(dt); monday.setDate(dt.getDate() - dow);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+    const key = isoDate(monday);
+    if (!buckets.has(key)) {
+      buckets.set(key, {
+        key, start: key, end: isoDate(sunday),
+        label: `${dayLabel(key)} - ${dayLabel(isoDate(sunday))}`,
+        days: [],
+      });
+    }
+    buckets.get(key).days.push(d);
+  });
+  return [...buckets.values()].sort((a, b) => a.key.localeCompare(b.key));
+}
+
 export function computeReports({
-  receipts = [], lines: allLines = [], items = [], categories = [], employees = [], customers = [], expenses = [],
+  receipts: allReceipts = [], lines: allLines = [], items = [], categories = [], modifiers = [],
+  employees = [], customers = [], expenses: allExpenses = [], range = null,
 }) {
   const itemById = Object.fromEntries(items.map((i) => [i.id, i]));
   const catById = Object.fromEntries(categories.map((c) => [c.id, c]));
   const empById = Object.fromEntries(employees.map((e) => [e.id, e]));
   const custById = Object.fromEntries(customers.map((c) => [c.id, c]));
 
+  // ---- Period scope ---------------------------------------------------------
+  const receipts = allReceipts.filter((r) => inRange(isoDate(r.created_at), range));
+  const expenses = allExpenses.filter((e) => inRange(isoDay(e.spent_on || e.created_at), range));
+  const receiptIds = new Set(receipts.map((r) => r.id));
+  const periodLines = allLines.filter((ln) => receiptIds.has(ln.receipt_id));
+
   const live = receipts.filter((r) => !isCancelled(r));
   const liveIds = new Set(live.map((r) => r.id));
   // Every aggregate below works off lines belonging to non-cancelled receipts.
-  const lines = allLines.filter((ln) => liveIds.has(ln.receipt_id));
+  const lines = periodLines.filter((ln) => liveIds.has(ln.receipt_id));
 
   const sales = live.filter((r) => (r.type || 'Sale') === 'Sale');
   const refunds = live.filter((r) => r.type === 'Refund');
 
   // Per-line discounts (original − final), grouped by receipt and by name, so the
   // reports capture item-level discounts as well as whole-ticket ones.
+  // Computed over ALL period lines (cancelled included) so the receipt list can
+  // still show what was discounted on a voided order.
   const lineDiscByReceipt = {};
+  const lineDiscNamesByReceipt = {};
   const lineDiscByName = {};
-  lines.forEach((ln) => {
+  periodLines.forEach((ln) => {
     const base = ln.base_total != null ? num(ln.base_total) : num(ln.line_total);
     const d = Math.max(0, base - num(ln.line_total));
     if (d > 0) {
       lineDiscByReceipt[ln.receipt_id] = (lineDiscByReceipt[ln.receipt_id] || 0) + d;
       const nm = ln.discount_name || 'Discount';
-      const cur = lineDiscByName[nm] || { applied: 0, amount: 0 };
-      cur.applied += 1; cur.amount += d;
-      lineDiscByName[nm] = cur;
+      (lineDiscNamesByReceipt[ln.receipt_id] = lineDiscNamesByReceipt[ln.receipt_id] || new Set()).add(nm);
+      if (liveIds.has(ln.receipt_id)) {
+        const cur = lineDiscByName[nm] || { applied: 0, amount: 0 };
+        cur.applied += 1; cur.amount += d;
+        lineDiscByName[nm] = cur;
+      }
     }
   });
+  // Total discount on a receipt = whole-ticket discount + every per-item discount.
+  const receiptDiscount = (r) => num(r.discount) + (lineDiscByReceipt[r.id] || 0);
+  const receiptDiscountNames = (r) => {
+    const names = [];
+    if (num(r.discount) > 0) names.push(r.discount_name || 'Discount');
+    (lineDiscNamesByReceipt[r.id] || new Set()).forEach((nm) => { if (!names.includes(nm)) names.push(nm); });
+    return names.join(', ');
+  };
 
   const grossSales = sales.reduce((s, r) => s + num(r.subtotal), 0);
-  const discountsTotal = sales.reduce((s, r) => s + num(r.discount) + (lineDiscByReceipt[r.id] || 0), 0);
+  const discountsTotal = sales.reduce((s, r) => s + receiptDiscount(r), 0);
   const refundsTotal = refunds.reduce((s, r) => s + num(r.total), 0);
   const netSales = grossSales - discountsTotal - refundsTotal;
   const expensesTotal = expenses.reduce((s, e) => s + num(e.amount), 0);
@@ -78,13 +145,13 @@ export function computeReports({
   const dayMap = new Map();
   const bump = (iso, patch) => {
     if (!iso) return;
-    const cur = dayMap.get(iso) || { date: iso, label: dayLabel(iso), gross: 0, refunds: 0, discount: 0, expenses: 0 };
+    const cur = dayMap.get(iso) || { date: iso, label: dayLabel(iso), gross: 0, refunds: 0, discount: 0, expenses: 0, receipts: 0 };
     Object.entries(patch).forEach(([k, v]) => { cur[k] += v; });
     dayMap.set(iso, cur);
   };
-  sales.forEach((r) => bump(isoDate(r.created_at), { gross: num(r.subtotal), discount: num(r.discount) + (lineDiscByReceipt[r.id] || 0) }));
+  sales.forEach((r) => bump(isoDate(r.created_at), { gross: num(r.subtotal), discount: receiptDiscount(r), receipts: 1 }));
   refunds.forEach((r) => bump(isoDate(r.created_at), { refunds: num(r.total) }));
-  expenses.forEach((e) => bump(isoDate(e.spent_on || e.created_at), { expenses: num(e.amount) }));
+  expenses.forEach((e) => bump(isoDay(e.spent_on || e.created_at), { expenses: num(e.amount) }));
   const daily = [...dayMap.values()]
     .sort((a, b) => a.date.localeCompare(b.date))
     .map((d) => {
@@ -97,7 +164,7 @@ export function computeReports({
   // Expenses grouped by day *and* category — the breakdown under the summary.
   const expenseByDayCat = new Map();
   expenses.forEach((e) => {
-    const iso = isoDate(e.spent_on || e.created_at);
+    const iso = isoDay(e.spent_on || e.created_at);
     if (!iso) return;
     const cat = e.category || 'Other';
     const key = `${iso}|${cat}`;
@@ -107,23 +174,33 @@ export function computeReports({
     expenseByDayCat.set(key, cur);
   });
   const expenseDailyRows = [...expenseByDayCat.values()]
-    .sort((a, b) => b.date.localeCompare(a.date) || a.category.localeCompare(b.category));
+    .sort((a, b) => b.date.localeCompare(a.date) || compareNatural(a.category, b.category));
+
+  // Expenses grouped by category only (period totals).
+  const expenseByCat = new Map();
+  expenses.forEach((e) => {
+    const cat = e.category || 'Other';
+    const cur = expenseByCat.get(cat) || { category: cat, amount: 0, count: 0 };
+    cur.amount += num(e.amount); cur.count += 1;
+    expenseByCat.set(cat, cur);
+  });
+  const expenseCategoryRows = [...expenseByCat.values()].sort((a, b) => b.amount - a.amount);
 
   const summarySeries = (field, granularity) => {
     if (granularity === 'Weeks') {
-      return WEEK_BUCKETS.map((w) => {
-        const inWeek = daily.filter((d) => d.date >= w.start && d.date <= w.end);
-        return {
-          bucket: w.label,
-          value: inWeek.reduce((s, d) => s + (d[field] || 0), 0),
-          expenses: inWeek.reduce((s, d) => s + (d.expenses || 0), 0),
-        };
-      });
+      return weekBuckets(daily).map((w) => ({
+        bucket: w.label,
+        value: w.days.reduce((s, d) => s + (d[field] || 0), 0),
+        expenses: w.days.reduce((s, d) => s + (d.expenses || 0), 0),
+      }));
     }
     return daily.map((d) => ({ bucket: d.label, value: d[field] || 0, expenses: d.expenses || 0 }));
   };
 
   // ---- Items / categories --------------------------------------------------
+  const receiptById0 = Object.fromEntries(receipts.map((r) => [r.id, r]));
+  const lineDate = (ln) => isoDate(receiptById0[ln.receipt_id]?.created_at);
+
   const itemAgg = new Map();
   const catAgg = new Map();
   lines.forEach((ln) => {
@@ -131,22 +208,28 @@ export function computeReports({
     const key = ln.item_id || ln.code || ln.name;
     const cur = itemAgg.get(key) || {
       code: ln.code || it?.code || '', name: ln.name || it?.name || 'Item',
-      category: it ? (catById[it.categoryId]?.name || '—') : '—', sold: 0, net: 0, itemId: ln.item_id, date: isoDate(receiptDate(ln, receipts)),
+      category: it ? (catById[it.categoryId]?.name || '—') : '—', sold: 0, net: 0, gross: 0, discount: 0, itemId: ln.item_id, date: lineDate(ln),
     };
+    const base = ln.base_total != null ? num(ln.base_total) : num(ln.line_total);
     cur.sold += num(ln.qty);
     cur.net += num(ln.line_total);
+    cur.gross += base;
+    cur.discount += Math.max(0, base - num(ln.line_total));
     itemAgg.set(key, cur);
 
     const catName = it ? (catById[it.categoryId]?.name || 'Uncategorized') : 'Uncategorized';
-    const c = catAgg.get(catName) || { name: catName, sold: 0, net: 0 };
+    const c = catAgg.get(catName) || { name: catName, sold: 0, net: 0, gross: 0, discount: 0 };
     c.sold += num(ln.qty);
     c.net += num(ln.line_total);
+    c.gross += base;
+    c.discount += Math.max(0, base - num(ln.line_total));
     catAgg.set(catName, c);
   });
 
+  // Menu order everywhere (1.1 < 1.2.1 < 1.10 < 2.1 …), same as the item list.
   const itemRows = [...itemAgg.values()]
     .map((r) => ({ ...r, cost: 0, grossProfit: r.net }))
-    .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+    .sort((a, b) => compareNatural(`${a.code} ${a.name}`, `${b.code} ${b.name}`));
 
   const topItems = [...itemAgg.values()]
     .sort((a, b) => b.net - a.net)
@@ -155,16 +238,15 @@ export function computeReports({
 
   const categoryRows = [...catAgg.values()]
     .map((r) => ({ ...r, cost: 0, grossProfit: r.net }))
-    .sort((a, b) => b.net - a.net);
+    .sort((a, b) => compareNatural(a.name, b.name));
 
   const itemPie = topItems.map((it) => ({ name: `${it.code} ${it.name}`, value: it.net, color: it.color }));
 
-  // Weekly per-item series for the Sales-by-item chart.
-  const lineDate = (ln) => isoDate(receiptDate(ln, receipts));
+  // Per-item series for the Sales-by-item chart (top 5), by day or real week.
   const itemSeries = (granularity) => {
-    const buckets = granularity === 'Days'
-      ? daily.map((d) => ({ label: d.label, match: (iso) => iso === d.date }))
-      : WEEK_BUCKETS.map((w) => ({ label: w.label, match: (iso) => iso >= w.start && iso <= w.end }));
+    const buckets = granularity === 'Weeks'
+      ? weekBuckets(daily).map((w) => ({ label: w.label, match: (iso) => iso >= w.start && iso <= w.end }))
+      : daily.map((d) => ({ label: d.label, match: (iso) => iso === d.date }));
     return buckets.map((b) => {
       const row = { bucket: b.label };
       topItems.forEach((it) => { row[it.name] = 0; });
@@ -182,7 +264,7 @@ export function computeReports({
     const name = empById[r.employee_id]?.name || 'Owner';
     const cur = empAgg.get(name) || { name, gross: 0, refunds: 0, discounts: 0, net: 0, receipts: 0, signups: 0 };
     if (r.type === 'Refund') { cur.refunds += num(r.total); }
-    else { cur.gross += num(r.subtotal); cur.discounts += num(r.discount); }
+    else { cur.gross += num(r.subtotal); cur.discounts += receiptDiscount(r); }
     cur.receipts += 1;
     empAgg.set(name, cur);
   });
@@ -216,6 +298,9 @@ export function computeReports({
       cancelled: isCancelled(r),
       cancelReason: r.cancel_reason || '',
       cancelledAt: r.cancelled_at ? dateTimeLabel(r.cancelled_at) : '',
+      gross: num(r.subtotal),
+      discount: receiptDiscount(r),
+      discountName: receiptDiscountNames(r),
       total: num(r.total),
     }));
 
@@ -223,7 +308,7 @@ export function computeReports({
   // One row per item sold, carrying its receipt's header fields. Cancelled
   // receipts are included but flagged, so the export still reconciles.
   const rowByReceiptId = Object.fromEntries(receiptRows.map((r) => [r.id, r]));
-  const receiptLineRows = allLines
+  const receiptLineRows = periodLines
     .map((ln) => {
       const head = rowByReceiptId[ln.receipt_id];
       if (!head) return null;
@@ -250,6 +335,7 @@ export function computeReports({
         discount: Math.max(0, base - num(ln.line_total)),
         discountName: ln.discount_name || '',
         netTotal: num(ln.line_total),
+        receiptDiscount: head.discount,
         receiptTotal: head.total,
       };
     })
@@ -257,6 +343,12 @@ export function computeReports({
     .sort((a, b) => `${b.isoDate} ${b.time}`.localeCompare(`${a.isoDate} ${a.time}`) || String(b.no).localeCompare(String(a.no)));
 
   // ---- Modifiers (flat by option) -----------------------------------------
+  // Listed in the admin's modifier order; options that no longer belong to a
+  // known modifier come last, alphabetically.
+  const optionOrder = new Map();
+  sortByOrder(modifiers).forEach((m, mi) => {
+    (m.options || []).forEach((o, oi) => { if (!optionOrder.has(o.name)) optionOrder.set(o.name, mi * 1000 + oi); });
+  });
   const modAgg = new Map();
   lines.forEach((ln) => {
     (ln.modifiers || []).forEach((m) => {
@@ -266,7 +358,11 @@ export function computeReports({
       modAgg.set(m.name, cur);
     });
   });
-  const modifierRows = [...modAgg.values()].sort((a, b) => a.name.localeCompare(b.name));
+  const modifierRows = [...modAgg.values()].sort((a, b) => {
+    const oa = optionOrder.has(a.name) ? optionOrder.get(a.name) : Number.MAX_SAFE_INTEGER;
+    const ob = optionOrder.has(b.name) ? optionOrder.get(b.name) : Number.MAX_SAFE_INTEGER;
+    return oa - ob || a.name.localeCompare(b.name);
+  });
 
   // ---- Discounts -----------------------------------------------------------
   // Whole-ticket discounts (receipt.discount) + per-line item discounts, keyed
@@ -279,7 +375,7 @@ export function computeReports({
     cur.amount += amount;
     discAgg.set(name, cur);
   };
-  sales.forEach((r) => addDisc(r.discount_name, 1, num(r.discount)));
+  sales.forEach((r) => { if (num(r.discount) > 0) addDisc(r.discount_name || 'Discount', 1, num(r.discount)); });
   Object.entries(lineDiscByName).forEach(([nm, v]) => addDisc(nm, v.applied, v.amount));
   const discountReportRows = [...discAgg.values()].sort((a, b) => b.amount - a.amount);
 
@@ -300,7 +396,7 @@ export function computeReports({
 
   // ---- Receipt detail lookup (for the clickable receipt modal) -------------
   const linesByReceipt = {};
-  allLines.forEach((ln) => { (linesByReceipt[ln.receipt_id] = linesByReceipt[ln.receipt_id] || []).push(ln); });
+  periodLines.forEach((ln) => { (linesByReceipt[ln.receipt_id] = linesByReceipt[ln.receipt_id] || []).push(ln); });
   const receiptById = {};
   receipts.forEach((r) => {
     receiptById[r.id] = {
@@ -317,6 +413,7 @@ export function computeReports({
       subtotal: num(r.subtotal),
       discount: num(r.discount),
       discountName: r.discount_name || '',
+      totalDiscount: receiptDiscount(r),
       total: num(r.total),
       lines: (linesByReceipt[r.id] || []).map((ln) => ({
         code: ln.code || '', name: ln.name || '', qty: num(ln.qty), unit: num(ln.unit),
@@ -329,16 +426,11 @@ export function computeReports({
   });
 
   return {
-    summary, daily, dailyRows, summarySeries, expenseDailyRows,
+    range,
+    summary, daily, dailyRows, summarySeries, expenseDailyRows, expenseCategoryRows,
     topItems, itemRows, categoryRows, itemPie, itemSeries,
     employeeRows, receiptStats, receiptRows, receiptLineRows, modifierRows, discountReportRows,
     customerStats, receiptById,
     hasData: receipts.length > 0,
   };
-}
-
-// Find the receipt a line belongs to (for per-line dates).
-function receiptDate(line, receipts) {
-  const r = receipts.find((x) => x.id === line.receipt_id);
-  return r?.created_at || '';
 }

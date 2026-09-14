@@ -1,11 +1,16 @@
-import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination } from './munchiesUi.jsx';
+import { useState } from 'react';
+import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination, defaultRange, rangeLabel } from './munchiesUi.jsx';
 import { rs } from '../../data/munchiesData.js';
-import { useMunchies } from '../../store/MunchiesStore.jsx';
+import { useReports } from '../../store/MunchiesStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
 
 export default function Discounts() {
-  const { reports } = useMunchies();
+  // Month to date by default; changeable from the toolbar like the summary page.
+  const [range, setRange] = useState(defaultRange);
+  const reports = useReports(range);
   const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(reports.discountReportRows, 10);
+  const totalApplied = reports.discountReportRows.reduce((s, r) => s + (r.applied || 0), 0);
+  const totalAmount = reports.discountReportRows.reduce((s, r) => s + (r.amount || 0), 0);
 
   const onExport = () => downloadCsv(`munchies-discounts-${csvDate()}.csv`, [
     { label: 'Name', value: 'name' },
@@ -15,10 +20,12 @@ export default function Discounts() {
 
   return (
     <div className="max-w-[1400px] mx-auto">
-      <ReportToolbar />
+      <ReportToolbar range={range} onRange={setRange} />
 
       <Panel>
-        <ExportBar onExport={onExport} />
+        <ExportBar onExport={onExport}>
+          <span className="hidden sm:inline text-xs font-semibold text-ink-400 whitespace-nowrap">{rangeLabel(range)}</span>
+        </ExportBar>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -36,6 +43,16 @@ export default function Discounts() {
                   <td className="px-5 py-4 text-right font-semibold text-ink-800">{rs(r.amount)}</td>
                 </tr>
               ))}
+              {reports.discountReportRows.length === 0 && (
+                <tr><td colSpan={3} className="px-5 py-10 text-center text-ink-400">No discounts applied in this period.</td></tr>
+              )}
+              {reports.discountReportRows.length > 0 && (
+                <tr className="border-t border-slate-200 bg-slate-50/60 font-bold text-ink-800">
+                  <td className="px-5 py-3.5">Total</td>
+                  <td className="px-5 py-3.5 text-right">{totalApplied}</td>
+                  <td className="px-5 py-3.5 text-right">{rs(totalAmount)}</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

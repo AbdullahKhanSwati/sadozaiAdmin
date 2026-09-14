@@ -1,19 +1,29 @@
+import { useState } from 'react';
 import { FileCheck2 } from 'lucide-react';
-import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination } from './munchiesUi.jsx';
+import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination, defaultRange, rangeLabel } from './munchiesUi.jsx';
 import { rs } from '../../data/munchiesData.js';
-import { useMunchies } from '../../store/MunchiesStore.jsx';
+import { useReports } from '../../store/MunchiesStore.jsx';
+import { downloadCsv, csvDate } from '../../lib/csv.js';
 
 export default function SalesByModifier() {
-  const { reports } = useMunchies();
+  const [range, setRange] = useState(defaultRange);
+  const reports = useReports(range);
+  const onExport = () => downloadCsv(`munchies-sales-by-modifier-${csvDate()}.csv`, [
+    { label: 'Modifier option', value: 'name' },
+    { label: 'Quantity sold', value: (r) => r.qty || 0 },
+    { label: 'Gross sales', value: (r) => r.gross || 0 },
+  ], reports.modifierRows);
   // Paginate by modifier group (each group + its options is one unit).
   const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(reports.modifierRows, 5);
 
   return (
     <div className="max-w-[1400px] mx-auto">
-      <ReportToolbar />
+      <ReportToolbar range={range} onRange={setRange} />
 
       <Panel>
-        <ExportBar />
+        <ExportBar onExport={onExport}>
+          <span className="hidden sm:inline text-xs font-semibold text-ink-400 whitespace-nowrap">{rangeLabel(range)}</span>
+        </ExportBar>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -27,6 +37,9 @@ export default function SalesByModifier() {
               {pageItems.map((g) => (
                 <GroupBlock key={g.name} group={g} />
               ))}
+              {reports.modifierRows.length === 0 && (
+                <tr><td colSpan={3} className="px-5 py-10 text-center text-ink-400">No modifiers sold in this period.</td></tr>
+              )}
             </tbody>
           </table>
         </div>

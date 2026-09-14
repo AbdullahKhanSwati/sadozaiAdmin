@@ -6,6 +6,7 @@ import {
 import * as XLSX from 'xlsx-js-style';
 import { supabaseMunchies } from '../../lib/supabaseMunchies.js';
 import { csvDate } from '../../lib/csv.js';
+import { defaultRange } from './munchiesUi.jsx';
 
 const fmtDate = (iso) =>
   iso ? new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : '—';
@@ -21,8 +22,9 @@ export default function Stock() {
   const [stockCats, setStockCats] = useState([]); // stock categories (ordered)
   const [stockItemsList, setStockItemsList] = useState([]); // stock items
   const [loading, setLoading] = useState(true);
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  // Month to date by default; clear the dates to see every entry.
+  const [from, setFrom] = useState(() => defaultRange().start);
+  const [to, setTo] = useState(() => defaultRange().end);
   const [expanded, setExpanded] = useState(null);
   const [tab, setTab] = useState('entries'); // 'entries' | 'manage'
   const [newCat, setNewCat] = useState('');
@@ -265,7 +267,10 @@ export default function Stock() {
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm" />
         </div>
         {(from || to) && (
-          <button onClick={() => { setFrom(''); setTo(''); }} className="text-sm font-semibold text-mun-600 hover:text-mun-700 py-2">Clear</button>
+          <button onClick={() => { setFrom(''); setTo(''); }} className="text-sm font-semibold text-mun-600 hover:text-mun-700 py-2" title="Show all entries">Clear (all time)</button>
+        )}
+        {(from !== defaultRange().start || to !== defaultRange().end) && (
+          <button onClick={() => { setFrom(defaultRange().start); setTo(defaultRange().end); }} className="text-sm font-semibold text-ink-500 hover:text-ink-700 py-2">Month to date</button>
         )}
         <div className="ml-auto flex items-center gap-2 text-sm text-ink-600">
           <CalendarDays className="w-4 h-4 text-ink-400" />

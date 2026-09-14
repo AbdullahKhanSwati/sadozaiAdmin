@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { FileCheck2, GripVertical, Trash2, Plus } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileCheck2, GripVertical, Trash2, Plus } from 'lucide-react';
 import { Card, PrimaryBtn, GhostBtn, underline } from './catalogUi.jsx';
 import { useMunchies } from '../../store/MunchiesStore.jsx';
 import { EditGate } from './formGate.jsx';
@@ -23,6 +23,19 @@ export default function ModifierForm() {
   const setOpt = (i, patch) => setOptions((os) => os.map((o, idx) => (idx === i ? { ...o, ...patch } : o)));
   const addOpt = () => setOptions((os) => [...os, { name: '', price: 0 }]);
   const delOpt = (i) => setOptions((os) => os.filter((_, idx) => idx !== i));
+
+  // Option order = the order the app lists them in. Drag the handle or use the
+  // arrows; it is saved together with the modifier.
+  const [dragIdx, setDragIdx] = useState(null);
+  const [overIdx, setOverIdx] = useState(null);
+  const moveOpt = (from, to) => {
+    if (from === to || from < 0 || to < 0 || to >= options.length) return;
+    setOptions((os) => { const next = [...os]; const [row] = next.splice(from, 1); next.splice(to, 0, row); return next; });
+  };
+  const onDragStart = (e, i) => { setDragIdx(i); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', String(i)); } catch { /* noop */ } };
+  const onDragOver = (e, i) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overIdx !== i) setOverIdx(i); };
+  const onDrop = (e, i) => { e.preventDefault(); if (dragIdx != null) moveOpt(dragIdx, i); setDragIdx(null); setOverIdx(null); };
+  const onDragEnd = () => { setDragIdx(null); setOverIdx(null); };
 
   const onSave = async () => {
     if (!name.trim()) return;
@@ -52,8 +65,24 @@ export default function ModifierForm() {
 
         <div className="space-y-6">
           {options.map((o, i) => (
-            <div key={i} className="flex items-end gap-4">
-              <GripVertical className="w-5 h-5 text-slate-300 mb-2 shrink-0" />
+            <div
+              key={i}
+              draggable
+              onDragStart={(e) => onDragStart(e, i)}
+              onDragOver={(e) => onDragOver(e, i)}
+              onDrop={(e) => onDrop(e, i)}
+              onDragEnd={onDragEnd}
+              className={[
+                'flex items-end gap-4 rounded-md -mx-2 px-2 py-1 transition-colors',
+                dragIdx === i ? 'opacity-40' : '',
+                overIdx === i && dragIdx != null && dragIdx !== i ? 'bg-mun-50 ring-1 ring-mun-300' : '',
+              ].join(' ')}
+            >
+              <GripVertical className="w-5 h-5 text-slate-300 mb-2 shrink-0 cursor-grab active:cursor-grabbing" title="Drag to reorder" />
+              <div className="flex flex-col shrink-0 -my-1 mb-1 text-slate-400">
+                <button type="button" onClick={() => moveOpt(i, i - 1)} disabled={i === 0} className="leading-none hover:text-mun-600 disabled:opacity-25" title="Move up"><ChevronUp className="w-4 h-4" /></button>
+                <button type="button" onClick={() => moveOpt(i, i + 1)} disabled={i === options.length - 1} className="leading-none hover:text-mun-600 disabled:opacity-25" title="Move down"><ChevronDown className="w-4 h-4" /></button>
+              </div>
               <div className="flex-1">
                 <div className="text-xs text-mun-600 mb-1">Option name</div>
                 <input value={o.name} onChange={(e) => setOpt(i, { name: e.target.value })} className={underline} />
@@ -72,6 +101,7 @@ export default function ModifierForm() {
         <button onClick={addOpt} className="flex items-center gap-2 text-mun-600 font-bold text-sm uppercase tracking-wide mt-8">
           <Plus className="w-5 h-5 rounded-full border-2 border-mun-600 p-0.5" /> Add option
         </button>
+        <p className="text-xs text-ink-400 mt-4">Options appear in the app in this order — drag the handle or use the arrows to change it.</p>
       </Card>
 
       <div className="flex items-center justify-between mt-4 px-2">
