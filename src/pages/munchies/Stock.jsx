@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Boxes, Download, ChevronDown, ChevronRight, ChevronUp, RefreshCw, User, CalendarDays,
-  Plus, Trash2, Tag, Package,
+  Plus, Trash2, Tag, Package, GripVertical,
 } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import { supabaseMunchies } from '../../lib/supabaseMunchies.js';
 import { csvDate } from '../../lib/csv.js';
 import { defaultRange } from './munchiesUi.jsx';
+import { useDragReorder, moveById, moveByStep } from '../../lib/useDragReorder.js';
 
 const fmtDate = (iso) =>
   iso ? new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : '—';
@@ -30,6 +31,7 @@ export default function Stock() {
   const [newCat, setNewCat] = useState('');
   const [newItemName, setNewItemName] = useState('');
   const [newItemCat, setNewItemCat] = useState('');
+  const [orderNotice, setOrderNotice] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -92,24 +94,33 @@ export default function Stock() {
     load();
   };
 
-  // Reorder categories / items — persist sort_order = position so the app's
-  // screens and the exported Excel follow the same order.
-  const moveCat = async (index, dir) => {
-    const arr = [...stockCats];
-    const j = index + dir;
-    if (j < 0 || j >= arr.length) return;
-    [arr[index], arr[j]] = [arr[j], arr[index]];
-    setStockCats(arr.map((c, i) => ({ ...c, sort_order: i })));
-    await Promise.all(arr.map((c, i) => supabaseMunchies.from('stock_categories').update({ sort_order: i }).eq('id', c.id)));
+  // Reorder categories / items (drag the handle, or the arrows on a touch
+  // screen). sort_order = 1-based position, saved in one call so the app's
+  // stock checker and both Excel exports follow exactly this order.
+  const persistOrder = async (table, rpc, rows) => {
+    const ids = rows.map((r) => r.id);
+    const { error } = await supabaseMunchies.rpc(rpc, { p_ids: ids });
+    if (error) {
+      // Older DB without the RPC: one update per row.
+      const results = await Promise.all(ids.map((id, i) => supabaseMunchies.from(table).update({ sort_order: i + 1 }).eq('id', id)));
+      const failed = results.find((r) => r.error);
+      if (failed) { window.alert(failed.error.message || 'Could not save the order.'); load(); return; }
+    }
+    setOrderNotice('Order saved — the app shows the stock list in this order.');
+    setTimeout(() => setOrderNotice(''), 2500);
   };
-  const moveItem = async (index, dir) => {
-    const arr = [...stockItemsList];
-    const j = index + dir;
-    if (j < 0 || j >= arr.length) return;
-    [arr[index], arr[j]] = [arr[j], arr[index]];
-    setStockItemsList(arr.map((it, i) => ({ ...it, sort_order: i })));
-    await Promise.all(arr.map((it, i) => supabaseMunchies.from('stock_items').update({ sort_order: i }).eq('id', it.id)));
+  const reorderCats = (next) => {
+    setStockCats(next.map((c, i) => ({ ...c, sort_order: i + 1 })));
+    persistOrder('stock_categories', 'munchies_reorder_stock_categories', next);
   };
+  const reorderItems = (next) => {
+    setStockItemsList(next.map((it, i) => ({ ...it, sort_order: i + 1 })));
+    persistOrder('stock_items', 'munchies_reorder_stock_items', next);
+  };
+  const moveCat = (index, dir) => { const next = moveByStep(stockCats, index, dir); if (next !== stockCats) reorderCats(next); };
+  const moveItem = (index, dir) => { const next = moveByStep(stockItemsList, index, dir); if (next !== stockItemsList) reorderItems(next); };
+  const catDrag = useDragReorder((from, to) => reorderCats(moveById(stockCats, from, to)));
+  const itemDrag = useDragReorder((from, to) => reorderItems(moveById(stockItemsList, from, to)));
 
   const staffName = (id) => names[id] || 'Unknown';
 
@@ -213,6 +224,10 @@ export default function Stock() {
       </div>
 
       {tab === 'manage' ? (
+        <>
+        <p className={['text-xs font-semibold mb-3', orderNotice ? 'text-mun-700' : 'text-ink-400'].join(' ')}>
+          {orderNotice || 'Drag a row by its handle (or use the arrows) to set the order the app shows — categories top to bottom, items within each category.'}
+        </p>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Categories */}
           <div className="bg-white rounded-xl border border-slate-200 p-5">
@@ -222,7 +237,8 @@ export default function Stock() {
               <button onClick={addCategory} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-mun-600 text-white text-sm font-semibold hover:bg-mun-700"><Plus className="w-4 h-4" /> Add</button>
             </div>
             {stockCats.length === 0 ? <p className="text-sm text-ink-400">No categories yet.</p> : stockCats.map((c, i) => (
-              <div key={c.id} className="flex items-center gap-2 py-2 border-t border-slate-100">
+              <div key={c.id} {...catDrag.rowProps(c.id)} className={['flex items-center gap-2 py-2 border-t border-slate-100 rounded transition-colors', catDrag.rowClass(c.id)].join(' ')}>
+                <GripVertical className="w-4 h-4 text-slate-300 cursor-grab active:cursor-grabbing shrink-0" title="Drag to reorder" />
                 <ReorderBtns onUp={() => moveCat(i, -1)} onDown={() => moveCat(i, 1)} first={i === 0} last={i === stockCats.length - 1} />
                 <input defaultValue={c.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== c.name) renameCategory(c.id, v); }} className="flex-1 border-b border-transparent hover:border-slate-200 focus:border-mun-500 bg-transparent py-1 text-sm text-ink-800 focus:outline-none" />
                 <button onClick={() => deleteCategory(c.id)} className="text-slate-400 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
@@ -242,7 +258,8 @@ export default function Stock() {
               <button onClick={addItem} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-mun-600 text-white text-sm font-semibold hover:bg-mun-700"><Plus className="w-4 h-4" /> Add</button>
             </div>
             {stockItemsList.length === 0 ? <p className="text-sm text-ink-400">No items yet.</p> : stockItemsList.map((it, i) => (
-              <div key={it.id} className="flex items-center gap-2 py-2 border-t border-slate-100">
+              <div key={it.id} {...itemDrag.rowProps(it.id)} className={['flex items-center gap-2 py-2 border-t border-slate-100 rounded transition-colors', itemDrag.rowClass(it.id)].join(' ')}>
+                <GripVertical className="w-4 h-4 text-slate-300 cursor-grab active:cursor-grabbing shrink-0" title="Drag to reorder" />
                 <ReorderBtns onUp={() => moveItem(i, -1)} onDown={() => moveItem(i, 1)} first={i === 0} last={i === stockItemsList.length - 1} />
                 <input defaultValue={it.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== it.name) updateItem(it.id, { name: v }); }} className="flex-1 min-w-0 border-b border-transparent hover:border-slate-200 focus:border-mun-500 bg-transparent py-1 text-sm text-ink-800 focus:outline-none" />
                 <select value={it.category_id || ''} onChange={(e) => updateItem(it.id, { category_id: e.target.value || null })} className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-ink-600">
@@ -254,6 +271,7 @@ export default function Stock() {
             ))}
           </div>
         </div>
+        </>
       ) : (
       <>
       {/* Date filter */}

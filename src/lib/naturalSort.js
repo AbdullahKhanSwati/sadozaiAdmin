@@ -98,3 +98,15 @@ export function sortItemsByMenu(items, categories, categoryIdOf = (i) => i?.cate
       || String(a?.id ?? '').localeCompare(String(b?.id ?? ''))
   );
 }
+
+// Position ordering for the stock checker (sort_order = 1-based position set
+// by drag-and-drop in the admin). Rows without a position go last, then by name.
+export function sortByPosition(rows, orderOf = (r) => r?.sortOrder, nameOf = (r) => r?.name || '') {
+  const pos = (r) => {
+    const n = Number(orderOf(r));
+    return Number.isFinite(n) && n > 0 ? n : Number.MAX_SAFE_INTEGER;
+  };
+  return [...(rows || [])].sort(
+    (a, b) => (pos(a) - pos(b)) || compareNatural(nameOf(a), nameOf(b)) || String(a?.id ?? '').localeCompare(String(b?.id ?? ''))
+  );
+}

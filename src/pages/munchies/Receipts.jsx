@@ -217,6 +217,7 @@ export default function Receipts() {
                 <th className="text-left font-medium px-5 py-3">Employee</th>
                 <th className="text-left font-medium px-5 py-3">Customer</th>
                 <th className="text-left font-medium px-5 py-3">Type</th>
+                <th className="text-right font-medium px-5 py-3">Gross sales</th>
                 <th className="text-right font-medium px-5 py-3">Discount</th>
                 <th className="text-right font-medium px-5 py-3">Total</th>
                 <th className="text-right font-medium px-5 py-3">Actions</th>
@@ -237,6 +238,9 @@ export default function Receipts() {
                   <td className="px-5 py-4 text-ink-700">{r.employee}</td>
                   <td className="px-5 py-4 text-ink-400">{r.customer}</td>
                   <td className="px-5 py-4 text-ink-700">{r.type}</td>
+                  <td className={['px-5 py-4 text-right whitespace-nowrap', r.cancelled ? 'text-ink-400 line-through' : 'text-ink-700'].join(' ')}>
+                    {rs(r.gross)}
+                  </td>
                   <td className="px-5 py-4 text-right text-mun-700 whitespace-nowrap" title={r.discountName || ''}>
                     {r.discount > 0 ? `- ${rs(r.discount)}` : <span className="text-ink-300">—</span>}
                   </td>
@@ -265,7 +269,7 @@ export default function Receipts() {
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={8} className="px-5 py-10 text-center text-ink-400">No receipts for {rangeLabel(range).toLowerCase()}.</td></tr>
+                <tr><td colSpan={9} className="px-5 py-10 text-center text-ink-400">No receipts for {rangeLabel(range).toLowerCase()}.</td></tr>
               )}
             </tbody>
           </table>
