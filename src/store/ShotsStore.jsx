@@ -305,6 +305,15 @@ export function ShotsProvider({ children }) {
     return f;
   }, [businessId]);
 
+  // Throws on failure so the page can tell the admin (e.g. a permission error).
+  const deleteFinanceEntry = useCallback(async (id) => {
+    const { data, error } = await supabase.from('transactions').delete().eq('id', id).select('id');
+    if (error) { console.error('deleteFinanceEntry', error); throw error; }
+    // RLS silently skips rows it doesn't allow — report that instead of pretending.
+    if (!data || data.length === 0) throw new Error('This entry could not be deleted (it may already be gone).');
+    setFinance((arr) => arr.filter((f) => f.id !== id));
+  }, []);
+
   // ---- Staff ---------------------------------------------------------------
   const addStaff = useCallback(async (data) => {
     const row = { status: 'Active', ...toRow(data, STAFF_KEYS), business_id: businessId };
@@ -326,6 +335,35 @@ export function ShotsProvider({ children }) {
     const { error } = await supabase.from('staff').delete().eq('id', id);
     if (error) { console.error('deleteStaff', error); return; }
     setStaff((arr) => arr.filter((s) => s.id !== id));
+  }, []);
+
+  const reloadStaff = useCallback(async () => {
+    const { data, error } = await supabase.from('staff').select('*').order('created_at', { ascending: true });
+    if (!error) setStaff((data || []).map(rowToStaff));
+  }, []);
+
+  // Create the app login + profile + staff row in one server-side transaction
+  // (admin_create_staff in shots_migration_staff_logins.sql). Throws on error.
+  const createStaffLogin = useCallback(async ({ email, password, name, role }) => {
+    const { data, error } = await supabase.rpc('admin_create_staff', {
+      p_email: (email || '').trim(),
+      p_password: password,
+      p_name: name || 'Staff',
+      p_role: role || 'Staff',
+    });
+    if (error) throw error;
+    await reloadStaff();
+    return { alreadyExisted: !!data?.already_existed, staffId: data?.staff_id ?? null };
+  }, [reloadStaff]);
+
+  // Delete the login (the app is signed out) AND the staff row. Throws on error.
+  const removeStaffLogin = useCallback(async (member) => {
+    const { error } = await supabase.rpc('admin_delete_staff', {
+      p_email: member.email || null,
+      p_staff_id: member.id ?? null,
+    });
+    if (error) throw error;
+    setStaff((arr) => arr.filter((s) => s.id !== member.id));
   }, []);
 
   // ---- Tiers ---------------------------------------------------------------
@@ -489,8 +527,8 @@ export function ShotsProvider({ children }) {
     addTable, updateTable, deleteTable,
     addMember, updateMember, deleteMember,
     addBooking, updateBooking, deleteBooking,
-    addFinanceEntry,
-    addStaff, updateStaff, deleteStaff,
+    addFinanceEntry, deleteFinanceEntry,
+    addStaff, updateStaff, deleteStaff, reloadStaff, createStaffLogin, removeStaffLogin,
     addTier, updateTier, deleteTier,
     addTableType, updateTableType, deleteTableType,
     addBookingDuration, updateBookingDuration, deleteBookingDuration,
@@ -502,8 +540,8 @@ export function ShotsProvider({ children }) {
     addTable, updateTable, deleteTable,
     addMember, updateMember, deleteMember,
     addBooking, updateBooking, deleteBooking,
-    addFinanceEntry,
-    addStaff, updateStaff, deleteStaff,
+    addFinanceEntry, deleteFinanceEntry,
+    addStaff, updateStaff, deleteStaff, reloadStaff, createStaffLogin, removeStaffLogin,
     addTier, updateTier, deleteTier,
     addTableType, updateTableType, deleteTableType,
     addBookingDuration, updateBookingDuration, deleteBookingDuration,

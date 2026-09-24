@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { PageHeader, StatCard, EmptyState } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
-import { createStaffLogin, supabase } from '../../lib/supabase.js';
+import { supabase } from '../../lib/supabase.js';
 
 // Roles an admin can assign. Only "Admin" (and the account owner) can sign in to
 // this admin panel and see the Dashboard in the app; "Staff" is limited to the
@@ -14,7 +14,8 @@ const ROLES = ['Admin', 'Staff'];
 const DEFAULT_ROLE = 'Staff';
 
 export default function Staff() {
-  const { staff, addStaff, deleteStaff, updateStaff } = useShots();
+  const { staff, updateStaff, createStaffLogin, removeStaffLogin } = useShots();
+  const [removingId, setRemovingId] = useState(null);
   const [query, setQuery] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [resetFor, setResetFor] = useState(null);
@@ -26,24 +27,36 @@ export default function Staff() {
     );
   }, [staff, query]);
 
-  const handleDelete = (s) => {
-    if (confirm(`Remove ${s.name || s.email} from the staff list? Their app login is not deleted, but they'll be removed here.`)) {
-      deleteStaff(s.id);
+  // Deletes the app login too — the staff member is signed out of the app and
+  // can no longer sign in.
+  const handleDelete = async (s) => {
+    const who = s.name || s.email || 'this staff member';
+    if (!confirm(`Delete ${who}'s login?\n\nThey will be signed out of the app and won't be able to sign in again. Their past bookings and expenses are kept.`)) return;
+    setRemovingId(s.id);
+    try {
+      await removeStaffLogin(s);
+    } catch (e) {
+      // eslint-disable-next-line no-alert
+      alert(e?.message || 'Could not delete this login. Make sure shots_migration_staff_logins.sql has been run.');
+    } finally {
+      setRemovingId(null);
     }
   };
 
   // Set the role in both the staff record (display) and profiles (app gating).
+  // The app permission (profiles.role) is set first; the card only changes if
+  // that worked, so the two can't disagree.
   const changeRole = async (s, role) => {
-    updateStaff(s.id, { role });
     try {
       const { error } = await supabase.rpc('admin_set_staff_role', {
         target_email: s.email,
         new_role: role,
       });
       if (error) throw error;
+      updateStaff(s.id, { role });
     } catch (e) {
       // eslint-disable-next-line no-alert
-      alert(e?.message || 'Role saved here, but the app permission could not be updated. Make sure the SQL function is installed.');
+      alert(e?.message || 'Could not change the role. Make sure shots_migration_staff_logins.sql has been run.');
     }
   };
 
@@ -116,8 +129,8 @@ export default function Staff() {
                 <button onClick={() => setResetFor(s)} className="btn-ghost px-2.5 py-1.5 text-xs">
                   <KeyRound className="w-3.5 h-3.5" /> Reset password
                 </button>
-                <button onClick={() => handleDelete(s)} className="btn-danger px-2.5 py-1.5 text-xs">
-                  <Trash2 className="w-3.5 h-3.5" /> Remove
+                <button onClick={() => handleDelete(s)} className="btn-danger px-2.5 py-1.5 text-xs" disabled={removingId === s.id}>
+                  <Trash2 className="w-3.5 h-3.5" /> {removingId === s.id ? 'Deleting…' : 'Delete login'}
                 </button>
               </div>
             </div>
@@ -125,7 +138,7 @@ export default function Staff() {
         </div>
       )}
 
-      {addOpen && <AddStaffModal onClose={() => setAddOpen(false)} addStaff={addStaff} />}
+      {addOpen && <AddStaffModal onClose={() => setAddOpen(false)} createStaffLogin={createStaffLogin} />}
       {resetFor && <ResetPasswordModal staff={resetFor} onClose={() => setResetFor(null)} />}
     </>
   );
@@ -246,7 +259,7 @@ function generatePassword() {
   return out.split('').sort(() => Math.random() - 0.5).join('');
 }
 
-function AddStaffModal({ onClose, addStaff }) {
+function AddStaffModal({ onClose, createStaffLogin }) {
   const [form, setForm] = useState({
     name: '', email: '', role: DEFAULT_ROLE, status: 'Active',
     joinedAt: new Date().toISOString().slice(0, 10),
@@ -266,25 +279,15 @@ function AddStaffModal({ onClose, addStaff }) {
 
     setBusy(true);
     try {
-      // 1) Create the app login account (auth.users + profiles via trigger).
+      // One server-side call creates the login, its profile (business + role)
+      // and the staff record — see admin_create_staff().
       const { alreadyExisted } = await createStaffLogin({
         email: form.email,
         password,
         name: form.name || 'Staff',
         role: form.role,
       });
-      // 2) Save the staff record (business data).
-      await addStaff({ ...form, name: form.name || 'Staff' });
-      // 3) Set the role in profiles so the app's Dashboard gate works.
-      let roleWarning = false;
-      try {
-        const { error: roleErr } = await supabase.rpc('admin_set_staff_role', {
-          target_email: form.email,
-          new_role: form.role,
-        });
-        if (roleErr) roleWarning = true;
-      } catch { roleWarning = true; }
-      setDone({ email: form.email.trim(), password, alreadyExisted, role: form.role, roleWarning });
+      setDone({ email: form.email.trim().toLowerCase(), password, alreadyExisted, role: form.role });
     } catch (e) {
       setError(e?.message || 'Could not create the login. Please try again.');
     } finally {
@@ -318,24 +321,17 @@ function AddStaffModal({ onClose, addStaff }) {
             <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-5">
               <p className="text-sm text-ink-600 mb-3">
                 Share these credentials with the staff member. They use them to log into the <b>mobile app</b>.
-                {done.alreadyExisted && ' (An account already existed for this email — the staff record was saved and the existing password still applies.)'}
+                {done.alreadyExisted && ' (A login already existed for this email — its password and role were updated to the ones below.)'}
               </p>
               <div className="space-y-2">
                 <CredRow label="Email" value={done.email} />
-                <CredRow label="Password" value={done.alreadyExisted ? '•••••• (unchanged)' : done.password} />
+                <CredRow label="Password" value={done.password} />
                 <CredRow label="Role" value={done.role} />
               </div>
-              {done.roleWarning && (
-                <div className="mt-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs px-4 py-3">
-                  Login created, but the role couldn’t be applied to app permissions. Run the <b>admin_set_staff_role</b> SQL function, then set the role again from the staff card.
-                </div>
-              )}
-              {!done.alreadyExisted && (
-                <button onClick={copyCreds} className="btn-ghost mt-4 text-sm">
-                  {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                  {copied ? 'Copied' : 'Copy email & password'}
-                </button>
-              )}
+              <button onClick={copyCreds} className="btn-ghost mt-4 text-sm">
+                {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                {copied ? 'Copied' : 'Copy email & password'}
+              </button>
             </div>
 
             <div className="flex justify-end gap-2 mt-6">

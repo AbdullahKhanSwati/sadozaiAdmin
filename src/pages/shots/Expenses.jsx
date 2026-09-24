@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Receipt, Search, Tags, TrendingDown, X } from 'lucide-react';
+import { Plus, Receipt, Search, Tags, Trash2, TrendingDown, X } from 'lucide-react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { rupees, inRangePred, rangeLabel, defaultRange } from '../../data/shotsData.js';
 import { DateRange, FilterChips, PageHeader, StatCard, EmptyState } from '../../components/ui.jsx';
@@ -9,7 +9,27 @@ import ExpenseCategoriesDialog from '../../components/dialogs/ExpenseCategoriesD
 const COLORS = ['#E53E3E', '#F4B860', '#3B82F6', '#10B981', '#A855F7', '#FF6B6B', '#64748B', '#0EA5E9'];
 
 export default function Expenses() {
-  const { finance, addFinanceEntry, expenseCategories } = useShots();
+  const { finance, addFinanceEntry, deleteFinanceEntry, expenseCategories } = useShots();
+  const [deletingId, setDeletingId] = useState(null);
+
+  const handleDelete = async (e) => {
+    const when = new Date(e.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+    if (!confirm(`Delete this expense?
+
+${e.category} · ${rupees(e.amount)} · ${when}
+${e.description || ''}
+
+This cannot be undone.`)) return;
+    setDeletingId(e.id);
+    try {
+      await deleteFinanceEntry(e.id);
+    } catch (err) {
+      // eslint-disable-next-line no-alert
+      alert(err?.message || 'Could not delete this expense.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
   const [cat, setCat] = useState('All');
   const [query, setQuery] = useState('');
   const [addOpen, setAddOpen] = useState(false);
@@ -93,6 +113,7 @@ export default function Expenses() {
                     <th className="table-th">Category</th>
                     <th className="table-th">Description</th>
                     <th className="table-th text-right">Amount</th>
+                    <th className="table-th w-12"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -107,11 +128,23 @@ export default function Expenses() {
                       </td>
                       <td className="table-td text-ink-600">{e.description}</td>
                       <td className="table-td text-right font-extrabold text-rose-600">− {rupees(e.amount)}</td>
+                      <td className="table-td text-right">
+                        <button
+                          onClick={() => handleDelete(e)}
+                          disabled={deletingId === e.id}
+                          className="p-1.5 rounded-lg text-ink-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                          title="Delete expense"
+                          aria-label="Delete expense"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   <tr>
                     <td className="px-4 py-3 font-bold" colSpan={3}>Total in view</td>
                     <td className="px-4 py-3 text-right font-extrabold text-rose-600">− {rupees(total)}</td>
+                    <td />
                   </tr>
                 </tbody>
               </table>
