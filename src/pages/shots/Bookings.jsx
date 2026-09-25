@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Coins, Download, Edit3, Plus, Search, Users, Calendar } from 'lucide-react';
 import { rupees, inRangePred, rangeLabel, defaultRange } from '../../data/shotsData.js';
 import {
@@ -7,16 +7,28 @@ import {
 import { useShots } from '../../store/ShotsStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
 import BookingDialog from '../../components/dialogs/BookingDialog.jsx';
+import {
+  bookingStatus, bookingPricing, bookingMinutes, minutesLabel, pricingModeLabel, pricingQuantity, pricingRate,
+} from '../../data/bookingInfo.js';
 
+// `liveStatus` is worked out from the booking's date + time (see bookingInfo.js):
+// the database only knows Active / Cancelled.
 const STATUS_ITEMS = (list) => [
   { value: 'All',       label: 'All',       count: list.length },
-  { value: 'Active',    label: 'Active',    count: list.filter((b) => b.status === 'Active').length },
-  { value: 'Upcoming',  label: 'Upcoming',  count: list.filter((b) => b.status === 'Upcoming').length },
-  { value: 'Completed', label: 'Completed', count: list.filter((b) => b.status === 'Completed').length },
+  { value: 'Active',    label: 'Playing now', count: list.filter((b) => b.liveStatus === 'Active').length },
+  { value: 'Upcoming',  label: 'Upcoming',  count: list.filter((b) => b.liveStatus === 'Upcoming').length },
+  { value: 'Completed', label: 'Completed', count: list.filter((b) => b.liveStatus === 'Completed').length },
+  { value: 'Cancelled', label: 'Cancelled', count: list.filter((b) => b.liveStatus === 'Cancelled').length },
 ];
 
 export default function Bookings() {
   const { bookings, tables } = useShots();
+  // Re-evaluate Upcoming → Active → Completed every minute.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60 * 1000);
+    return () => clearInterval(t);
+  }, []);
   const [{ from, to }, setRange] = useState(() => defaultRange());
   const [status, setStatus] = useState('All');
   const [query, setQuery] = useState('');
@@ -26,23 +38,27 @@ export default function Bookings() {
 
   const scoped = useMemo(() => {
     const inRange = inRangePred(from, to);
-    return bookings.filter((b) => inRange(b.date));
-  }, [bookings, from, to]);
+    return bookings
+      .filter((b) => inRange(b.date))
+      .map((b) => ({ ...b, liveStatus: bookingStatus(b, now) }));
+  }, [bookings, from, to, now]);
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
     return scoped.filter((b) => {
       const matchQ = !q || (b.memberName || '').toLowerCase().includes(q) || String(b.tableNumber).includes(q);
-      const matchS = status === 'All' || b.status === status;
+      const matchS = status === 'All' || b.liveStatus === status;
       return matchQ && matchS;
       // Newest first: latest date on top, latest start time within a day.
     }).sort((a, b) => (a.date === b.date ? (b.start || '').localeCompare(a.start || '') : (a.date > b.date ? -1 : 1)));
   }, [scoped, query, status]);
 
   // Period totals (exclude cancelled from revenue).
-  const periodRevenue = scoped.filter((b) => b.status !== 'Cancelled').reduce((s, b) => s + (b.amount || 0), 0);
-  const periodPlayers = scoped.reduce((s, b) => s + (b.players || 0), 0);
-  const periodActive = scoped.filter((b) => b.status === 'Active').length;
+  const live = scoped.filter((b) => b.liveStatus !== 'Cancelled');
+  const periodRevenue = live.reduce((s, b) => s + (b.amount || 0), 0);
+  const periodPlayers = live.reduce((s, b) => s + (b.players || 0), 0);
+  const periodActive = scoped.filter((b) => b.liveStatus === 'Active').length;
+  const periodCancelled = scoped.length - live.length;
 
   const exportCsv = () => {
     downloadCsv(`bookings-${csvDate()}.csv`, [
@@ -54,8 +70,13 @@ export default function Bookings() {
       { label: 'Member ID', value: (b) => (b.isMember ? b.memberId : 'Walk-in') },
       { label: 'Type', value: (b) => b.memberType || 'Guest' },
       { label: 'Players', value: 'players' },
+      { label: 'Pricing', value: (b) => pricingModeLabel(b) },
+      { label: 'Games', value: (b) => (b.pricingMode === 'game' ? Math.max(1, Math.round(Number(b.units) || 1)) : '') },
+      { label: 'Duration', value: (b) => minutesLabel(bookingMinutes(b)) },
+      { label: 'Rate', value: (b) => pricingRate(b) },
+      { label: 'Charged for', value: (b) => pricingQuantity(b) },
       { label: 'Amount (Rs.)', value: 'amount' },
-      { label: 'Status', value: 'status' },
+      { label: 'Status', value: 'liveStatus' },
     ], list);
   };
 
@@ -82,10 +103,10 @@ export default function Bookings() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard icon={Calendar} label={`Bookings · ${timeframeLabel}`} value={scoped.length} sub={`${periodActive} active`} accent="brand" />
+        <StatCard icon={Calendar} label={`Bookings · ${timeframeLabel}`} value={live.length} sub={`${periodActive} playing now${periodCancelled ? ` · ${periodCancelled} cancelled` : ''}`} accent="brand" />
         <StatCard icon={Coins}    label={`Revenue · ${timeframeLabel}`}  value={rupees(periodRevenue)} sub="From bookings only" accent="emerald" />
         <StatCard icon={Users}    label="Players"          value={periodPlayers} sub="Across all tables" accent="blue" />
-        <StatCard icon={Calendar} label="Upcoming"         value={scoped.filter((b) => b.status === 'Upcoming').length} sub="Confirmed for later" accent="amber" />
+        <StatCard icon={Calendar} label="Upcoming"         value={scoped.filter((b) => b.liveStatus === 'Upcoming').length} sub="Confirmed for later" accent="amber" />
       </div>
 
       <div className="card p-4 mb-4">
@@ -147,6 +168,7 @@ function ListView({ list, onPick }) {
               <th className="table-th">Member</th>
               <th className="table-th">Type</th>
               <th className="table-th">Players</th>
+              <th className="table-th">Pricing</th>
               <th className="table-th text-right">Amount</th>
               <th className="table-th">Status</th>
               <th className="table-th"></th>
@@ -170,8 +192,14 @@ function ListView({ list, onPick }) {
                   <span className="chip bg-slate-100 text-ink-600">{b.memberType || 'Guest'}</span>
                 </td>
                 <td className="table-td">{b.players}</td>
+                <td className="table-td whitespace-nowrap">
+                  <div className="font-semibold">{pricingModeLabel(b)}</div>
+                  <div className="text-[11px] text-ink-400">
+                    {pricingQuantity(b)}{pricingRate(b) ? ` · ${pricingRate(b)}` : ''}
+                  </div>
+                </td>
                 <td className="table-td text-right font-bold">{rupees(b.amount)}</td>
-                <td className="table-td"><StatusPill value={b.status} /></td>
+                <td className="table-td"><StatusPill value={b.liveStatus} /></td>
                 <td className="table-td text-right">
                   <span className="text-brand-600 font-bold text-sm inline-flex items-center gap-1">
                     <Edit3 className="w-3.5 h-3.5" /> Edit
@@ -218,8 +246,9 @@ function BoardView({ list, tables, onPick }) {
                 >
                   <div className="flex items-center justify-between">
                     <div className="font-semibold text-sm truncate">{b.memberName}</div>
-                    <StatusPill value={b.status} />
+                    <StatusPill value={b.liveStatus} />
                   </div>
+                  <div className="text-[11px] text-ink-400 mt-0.5">{bookingPricing(b)}</div>
                   <div className="flex items-center justify-between text-[12px] text-ink-500 mt-1">
                     <span>{b.start} – {b.end}</span>
                     <span className="font-bold text-ink-700">{rupees(b.amount)}</span>

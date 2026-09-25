@@ -9,6 +9,7 @@ import { useShots } from '../../store/ShotsStore.jsx';
 import { signedUrl } from '../../lib/supabase.js';
 import MembershipVirtualCard from '../../components/MembershipVirtualCard.jsx';
 import MemberDialog from '../../components/dialogs/MemberDialog.jsx';
+import { bookingStatus } from '../../data/bookingInfo.js';
 
 export default function MemberDetail() {
   const { id } = useParams();
@@ -139,7 +140,7 @@ export default function MemberDetail() {
                         <td className="table-td">{b.start} → {b.end}</td>
                         <td className="table-td">{b.players}</td>
                         <td className="table-td text-right font-bold">{rupees(b.amount)}</td>
-                        <td className="table-td"><StatusPill value={b.status} /></td>
+                        <td className="table-td"><StatusPill value={bookingStatus(b)} /></td>
                       </tr>
                     ))}
                   </tbody>

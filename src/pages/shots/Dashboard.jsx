@@ -15,6 +15,7 @@ import {
 import { DateRange, PageHeader, StatCard, StatusPill, TierBadge } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
 import { downloadCsvMatrix, csvDate } from '../../lib/csv.js';
+import { bookingStatus, bookingMinutes, pricingModeLabel, pricingQuantity, pricingRate } from '../../data/bookingInfo.js';
 
 const PIE_COLORS = ['#E53E3E', '#F4B860', '#3B82F6', '#10B981', '#A855F7', '#FF6B6B', '#64748B'];
 
@@ -132,18 +133,19 @@ export default function Dashboard() {
 
     // ---- Bookings (sales) ----
     M.push([`BOOKINGS — SALES (${periodBookings.length})`]);
-    M.push(['Date', 'Start', 'End', 'Table', 'Type', 'Customer', 'Member ID', 'Tier', 'Players', 'Duration (min)', 'Subtotal (Rs.)', 'Discount (Rs.)', 'Discount Note', 'Amount (Rs.)', 'Status']);
+    M.push(['Date', 'Start', 'End', 'Table', 'Type', 'Customer', 'Member ID', 'Tier', 'Players', 'Duration (min)', 'Pricing', 'Charged for', 'Rate', 'Subtotal (Rs.)', 'Discount (Rs.)', 'Discount Note', 'Amount (Rs.)', 'Status']);
     periodBookings.forEach((b) => {
       M.push([
         b.date, b.start || '', b.end || '', `Table ${b.tableNumber}`,
         b.isMember ? 'Member' : 'Walk-in', b.memberName || '',
         b.isMember ? (b.memberId || '') : '', b.isMember ? (b.memberType || '') : '',
-        b.players || 1, (b.intervals?.length || 0) * 15,
+        b.players || 1, bookingMinutes(b),
+        pricingModeLabel(b), pricingQuantity(b), pricingRate(b),
         b.subtotal ?? b.amount ?? 0, b.discount?.amount || 0, discountNote(b.discount),
-        b.amount || 0, b.status || '',
+        b.amount || 0, bookingStatus(b),
       ]);
     });
-    M.push(['', '', '', '', '', '', '', '', '', '', '', '', 'Total', bookingRevenue, '']);
+    M.push(['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'Total', bookingRevenue, '']);
     blank();
 
     // ---- Membership sales ----

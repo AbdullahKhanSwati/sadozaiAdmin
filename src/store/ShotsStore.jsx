@@ -34,6 +34,10 @@ const BOOKING_KEYS = {
   end: 'end_time', intervals: 'intervals', status: 'status', amount: 'amount',
   subtotal: 'subtotal', players: 'players', isMember: 'is_member', memberId: 'member_id',
   memberName: 'member_name', memberType: 'member_type', members: 'members', discount: 'discount',
+  // How the booking was charged (shots_pricing_migration.sql). Without these the
+  // admin could neither show nor save per-hour / per-game / per-minute details.
+  pricingMode: 'pricing_mode', pricingRuleId: 'pricing_rule_id', pricingLabel: 'pricing_label',
+  unitPrice: 'unit_price', units: 'units', durationMinutes: 'duration_minutes',
 };
 const FINANCE_KEYS = {
   date: 'date', time: 'time', type: 'type', category: 'category',
