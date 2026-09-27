@@ -1,10 +1,13 @@
-import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination } from './bfUi.jsx';
+import { useState } from 'react';
+import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination, defaultRange, rangeLabel } from './bfUi.jsx';
 import { rs } from '../../data/munchiesData.js';
-import { useBlockFactory } from '../../store/BlockFactoryStore.jsx';
+import { useBfReports } from '../../store/BlockFactoryStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
 
 export default function Discounts() {
-  const { reports } = useBlockFactory();
+  // Month to date by default (by bill date); the picker changes the period.
+  const [range, setRange] = useState(defaultRange);
+  const reports = useBfReports(range);
   const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(reports.discountReportRows, 10);
 
   const onExport = () => downloadCsv(`block-factory-discounts-${csvDate()}.csv`, [
@@ -15,7 +18,7 @@ export default function Discounts() {
 
   return (
     <div className="max-w-[1400px] mx-auto">
-      <ReportToolbar />
+      <ReportToolbar range={range} onRange={setRange} />
 
       <Panel>
         <ExportBar onExport={onExport} />
@@ -36,6 +39,9 @@ export default function Discounts() {
                   <td className="px-5 py-4 text-right font-semibold text-ink-800">{rs(r.amount)}</td>
                 </tr>
               ))}
+              {reports.discountReportRows.length === 0 && (
+                <tr><td colSpan={3} className="px-5 py-10 text-center text-ink-400">No discounts for {rangeLabel(range).toLowerCase()}.</td></tr>
+              )}
             </tbody>
           </table>
         </div>

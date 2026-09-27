@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { supabaseBlockFactory as sb } from '../lib/supabaseBlockFactory.js';
-import { computeReports } from '../data/blockFactoryReports.js';
+import { computeReports, saleIso } from '../data/blockFactoryReports.js';
 
 // Live catalog store for the Block Factory admin, backed by the Block Factory Supabase
 // project. The exported API (state arrays + save/delete fns + helpers) is kept
@@ -202,6 +202,30 @@ export function BlockFactoryProvider({ children }) {
   }, [reloadSales]);
 
   const cancelReceipt = useCallback((id, reason) => setReceiptStatus(id, 'cancelled', reason), [setReceiptStatus]);
+
+  // PERMANENT delete — Owner only (bf_owner_delete_receipt checks the role and
+  // refuses a bill that still has payments recorded against it).
+  const deleteReceipt = useCallback(async (id) => {
+    const { error } = await sb.rpc('bf_owner_delete_receipt', { p_id: id });
+    if (error) throw new Error(error.message || 'Could not delete this bill.');
+    setSalesRows((s) => ({
+      receipts: s.receipts.filter((r) => r.id !== id),
+      lines: s.lines.filter((l) => l.receipt_id !== id),
+    }));
+  }, []);
+
+  // Edit an old bill: qty + price per line and the customer (admins). The
+  // server recalculates the totals (bf_edit_receipt) and logs the change.
+  const editReceipt = useCallback(async (id, { customerId, lines }) => {
+    const { data, error } = await sb.rpc('bf_edit_receipt', {
+      p_receipt_id: id,
+      p_customer_id: customerId || null,
+      p_lines: (lines || []).map((l) => ({ id: l.id, qty: Number(l.qty), unit: Number(l.unit) })),
+    });
+    if (error) throw new Error(error.message || 'Could not save the bill.');
+    await Promise.all([reloadSales(), reloadCustomerPayments()]);
+    return data;
+  }, [reloadSales, reloadCustomerPayments]);
   const restoreReceipt = useCallback((id) => setReceiptStatus(id, 'completed'), [setReceiptStatus]);
 
   // ---- Expense categories ---------------------------------------------------
@@ -350,6 +374,18 @@ export function BlockFactoryProvider({ children }) {
     await reloadCustomerPayments();
   }, [reloadCustomerPayments]);
 
+  // Raw inputs, so pages can build reports for their own date range.
+  const reportInputs = useMemo(() => ({
+    receipts: salesRows.receipts,
+    lines: salesRows.lines,
+    items: state.items,
+    categories: state.categories,
+    employees: state.employees,
+    customers: state.customers,
+    expenses,
+    customerPayments,
+  }), [salesRows, state.items, state.categories, state.employees, state.customers, expenses, customerPayments]);
+
   const reports = useMemo(() => computeReports({
     receipts: salesRows.receipts,
     lines: salesRows.lines,
@@ -374,7 +410,7 @@ export function BlockFactoryProvider({ children }) {
     totalOutstanding, addCustomerPayment, cancelCustomerPayment, reloadCustomerPayments,
     receiptBalance, paymentsForReceipt, openBillsForCustomer,
     // orders
-    cancelReceipt, restoreReceipt, reloadSales,
+    cancelReceipt, restoreReceipt, reloadSales, deleteReceipt, editReceipt, reportInputs,
     // items
     saveItem: makeSave('items'), deleteItem: makeDelete('items'), deleteItems: makeDeleteMany('items'),
     // categories
@@ -404,10 +440,24 @@ export function BlockFactoryProvider({ children }) {
     customerPayments, customerBalances, customerBalance, paymentsForCustomer,
     totalOutstanding, addCustomerPayment, cancelCustomerPayment, reloadCustomerPayments,
     receiptBalance, paymentsForReceipt, openBillsForCustomer,
-    cancelReceipt, restoreReceipt, reloadSales,
+    cancelReceipt, restoreReceipt, reloadSales, deleteReceipt, editReceipt, reportInputs,
   ]);
 
   return <BlockFactoryContext.Provider value={value}>{children}</BlockFactoryContext.Provider>;
+}
+
+// Reports scoped to a date range ({ start, end } ISO days, or key 'all'),
+// by BILL date (sale_date). Receipts / Discounts use it so they open on
+// month-to-date and follow the picker in their toolbar.
+export function useBfReports(range) {
+  const { reportInputs } = useBlockFactory();
+  return useMemo(() => {
+    const all = !range || range.key === 'all' || (!range.start && !range.end);
+    const inRange = (iso) => all || (!!iso && (!range.start || iso >= range.start) && (!range.end || iso <= range.end));
+    const receipts = reportInputs.receipts.filter((r) => inRange(saleIso(r)));
+    const ids = new Set(receipts.map((r) => r.id));
+    return computeReports({ ...reportInputs, receipts, lines: reportInputs.lines.filter((l) => ids.has(l.receipt_id)) });
+  }, [reportInputs, range]);
 }
 
 export function useBlockFactory() {

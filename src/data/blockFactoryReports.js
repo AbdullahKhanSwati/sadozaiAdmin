@@ -1,6 +1,8 @@
 // Aggregates real sales (receipts + receipt_lines) into the shapes the report
 // pages render. Pure functions — the store fetches the rows and calls this.
 import { WEEK_BUCKETS } from './munchiesData.js';
+// Same whole-order-discount → lines rule as Munchies (equal share per item).
+import { splitOrderDiscount } from './munchiesReports.js';
 
 const ITEM_COLORS = ['#607D8B', '#7CB342', '#29B6F6', '#EC407A', '#FDD835', '#8E24AA', '#26A69A', '#FF7043'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -26,7 +28,7 @@ export const isCancelled = (r) => (r?.status || 'completed') === 'cancelled';
 // THE date a receipt belongs to. `sale_date` is what the user typed on the
 // ticket, so a bill entered today but dated last week lands in last week's
 // figures. `created_at` is only the audit trail of when it was keyed in.
-const saleIso = (r) => r?.sale_date || isoDate(r?.created_at);
+export const saleIso = (r) => r?.sale_date || isoDate(r?.created_at);
 const saleLabel = (r) => {
   const iso = saleIso(r);
   return iso ? `${dayLabel(iso)} ${iso.slice(0, 4)}` : '';
@@ -72,6 +74,22 @@ export function computeReports({
       lineDiscByName[nm] = cur;
     }
   });
+
+  // Each line's share of its receipt's WHOLE-ORDER discount (receipts.discount),
+  // so line-level figures (line export, sales by item / category) add up to the
+  // receipt total. See splitOrderDiscount in munchiesReports.js.
+  const allLinesByReceipt = new Map();
+  allLines.forEach((ln) => {
+    if (!allLinesByReceipt.has(ln.receipt_id)) allLinesByReceipt.set(ln.receipt_id, []);
+    allLinesByReceipt.get(ln.receipt_id).push(ln);
+  });
+  const orderShare = new Map();
+  receipts.forEach((r) => {
+    if (num(r.discount) <= 0) return;
+    splitOrderDiscount(r.discount, allLinesByReceipt.get(r.id) || []).forEach((v, ln) => orderShare.set(ln, v));
+  });
+  const shareOf = (ln) => orderShare.get(ln) || 0;
+  const round2 = (v) => Math.round(v * 100) / 100;
 
   const grossSales = sales.reduce((s, r) => s + num(r.subtotal), 0);
   const discountsTotal = sales.reduce((s, r) => s + num(r.discount) + (lineDiscByReceipt[r.id] || 0), 0);
@@ -151,14 +169,16 @@ export function computeReports({
       code: ln.code || it?.code || '', name: ln.name || it?.name || 'Item',
       category: it ? (catById[it.categoryId]?.name || '—') : '—', sold: 0, net: 0, itemId: ln.item_id, date: isoDate(receiptDate(ln, receipts)),
     };
+    // Net after the line's own discount AND its share of any whole-order discount.
+    const share = shareOf(ln);
     cur.sold += num(ln.qty);
-    cur.net += num(ln.line_total);
+    cur.net = round2(cur.net + num(ln.line_total) - share);
     itemAgg.set(key, cur);
 
     const catName = it ? (catById[it.categoryId]?.name || 'Uncategorized') : 'Uncategorized';
     const c = catAgg.get(catName) || { name: catName, sold: 0, net: 0 };
     c.sold += num(ln.qty);
-    c.net += num(ln.line_total);
+    c.net = round2(c.net + num(ln.line_total) - share);
     catAgg.set(catName, c);
   });
 
@@ -188,7 +208,7 @@ export function computeReports({
       topItems.forEach((it) => { row[it.name] = 0; });
       lines.forEach((ln) => {
         const nm = (ln.name || itemById[ln.item_id]?.name);
-        if (row[nm] !== undefined && b.match(lineDate(ln))) row[nm] += num(ln.line_total);
+        if (row[nm] !== undefined && b.match(lineDate(ln))) row[nm] = round2(row[nm] + num(ln.line_total) - shareOf(ln));
       });
       return row;
     });
@@ -250,6 +270,14 @@ export function computeReports({
   // One row per item sold, carrying its receipt's header fields. Cancelled
   // receipts are included but flagged, so the export still reconciles.
   const rowByReceiptId = Object.fromEntries(receiptRows.map((r) => [r.id, r]));
+  const receiptRaw = Object.fromEntries(receipts.map((r) => [r.id, r]));
+  // Per-line discounts on every receipt (cancelled included) for the export.
+  const lineDiscAllByReceipt = {};
+  allLines.forEach((ln) => {
+    const b = ln.base_total != null ? num(ln.base_total) : num(ln.line_total);
+    const d = Math.max(0, b - num(ln.line_total));
+    if (d > 0) lineDiscAllByReceipt[ln.receipt_id] = (lineDiscAllByReceipt[ln.receipt_id] || 0) + d;
+  });
   const receiptLineRows = allLines
     .map((ln) => {
       const head = rowByReceiptId[ln.receipt_id];
@@ -276,9 +304,15 @@ export function computeReports({
         qty: num(ln.qty),
         unit: num(ln.unit),
         grossTotal: base,
-        discount: Math.max(0, base - num(ln.line_total)),
-        discountName: ln.discount_name || '',
-        netTotal: num(ln.line_total),
+        itemDiscount: Math.max(0, base - num(ln.line_total)),
+        orderDiscountShare: shareOf(ln),
+        discount: round2(Math.max(0, base - num(ln.line_total)) + shareOf(ln)),
+        discountName: [
+          base - num(ln.line_total) > 0 ? (ln.discount_name || 'Discount') : '',
+          shareOf(ln) > 0 ? `${receiptRaw[ln.receipt_id]?.discount_name || 'Order discount'} (order)` : '',
+        ].filter(Boolean).join(' + '),
+        netTotal: round2(num(ln.line_total) - shareOf(ln)),
+        receiptDiscount: round2(num(receiptRaw[ln.receipt_id]?.discount) + (lineDiscAllByReceipt[ln.receipt_id] || 0)),
         receiptTotal: head.total,
       };
     })
@@ -354,7 +388,10 @@ export function computeReports({
       total: num(r.total),
       paid: paidFor(r),
       balance: isCancelled(r) ? 0 : Math.max(0, num(r.total) - paidFor(r)),
+      paidAtTill: num(r.paid),
+      editedAt: r.edited_at ? dateTimeLabel(r.edited_at) : '',
       lines: (linesByReceipt[r.id] || []).map((ln) => ({
+        id: ln.id, itemId: ln.item_id || null,
         code: ln.code || '', name: ln.name || '', qty: num(ln.qty), unit: num(ln.unit),
         unitLabel: ln.unit_label || '',
         lineTotal: num(ln.line_total),
@@ -374,8 +411,10 @@ export function computeReports({
   };
 }
 
-// Find the receipt a line belongs to (for per-line dates).
+// The BILL date of the receipt a line belongs to (for per-line dates). It used
+// to return created_at (when the bill was typed in), so Sales-by-item dates and
+// its chart grouped back-dated bills on the wrong day.
 function receiptDate(line, receipts) {
   const r = receipts.find((x) => x.id === line.receipt_id);
-  return r?.created_at || '';
+  return saleIso(r);
 }
