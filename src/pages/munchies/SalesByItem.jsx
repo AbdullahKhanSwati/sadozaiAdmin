@@ -7,6 +7,7 @@ import { ReportToolbar, Panel, ExportBar, ChartSelect, usePagination, TablePagin
 import { ITEM_CHART_TYPES, GRANULARITY_OPTIONS, rs, rsAxis } from '../../data/munchiesData.js';
 import { useReports } from '../../store/MunchiesStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
+import { tickIntervalFor } from '../../lib/chartBuckets.js';
 
 export default function SalesByItem() {
   const [range, setRange] = useState(defaultRange);
@@ -134,7 +135,7 @@ function renderItemChart(type, data, topItems, itemPie) {
   const axes = (
     <>
       <CartesianGrid strokeDasharray="0" stroke="#EEF2F6" vertical={false} />
-      <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: '#94A3B8' }} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} />
+      <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: '#94A3B8' }} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} interval={tickIntervalFor(data.length)} />
       <YAxis tickFormatter={rsAxis} tick={{ fontSize: 11, fill: '#94A3B8' }} tickLine={false} axisLine={false} width={80} />
       <Tooltip formatter={(v) => rs(v)} contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12 }} />
       <Legend wrapperStyle={{ fontSize: 11 }} />

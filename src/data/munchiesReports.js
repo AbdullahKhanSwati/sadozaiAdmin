@@ -1,6 +1,7 @@
 // Aggregates real sales (receipts + receipt_lines) into the shapes the report
 // pages render. Pure functions — the store fetches the rows and calls this.
 import { compareNatural, sortByOrder } from '../lib/naturalSort.js';
+import { bucketDays, bucketKey, bucketList } from '../lib/chartBuckets.js';
 
 const ITEM_COLORS = ['#607D8B', '#7CB342', '#29B6F6', '#EC407A', '#FDD835', '#8E24AA', '#26A69A', '#FF7043'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -247,16 +248,9 @@ export function computeReports({
   });
   const expenseCategoryRows = [...expenseByCat.values()].sort((a, b) => b.amount - a.amount);
 
-  const summarySeries = (field, granularity) => {
-    if (granularity === 'Weeks') {
-      return weekBuckets(daily).map((w) => ({
-        bucket: w.label,
-        value: w.days.reduce((s, d) => s + (d[field] || 0), 0),
-        expenses: w.days.reduce((s, d) => s + (d.expenses || 0), 0),
-      }));
-    }
-    return daily.map((d) => ({ bucket: d.label, value: d[field] || 0, expenses: d.expenses || 0 }));
-  };
+  // Chart series for any metric, by Days / Weeks / Months / Years.
+  const summarySeries = (field, granularity) =>
+    bucketDays(daily, granularity, { value: field, expenses: 'expenses' });
 
   // ---- Items / categories --------------------------------------------------
   const receiptById0 = Object.fromEntries(receipts.map((r) => [r.id, r]));
@@ -307,18 +301,22 @@ export function computeReports({
 
   // Per-item series for the Sales-by-item chart (top 5), by day or real week.
   const itemSeries = (granularity) => {
-    const buckets = granularity === 'Weeks'
-      ? weekBuckets(daily).map((w) => ({ label: w.label, match: (iso) => iso >= w.start && iso <= w.end }))
-      : daily.map((d) => ({ label: d.label, match: (iso) => iso === d.date }));
-    return buckets.map((b) => {
+    // Days / Weeks / Months / Years over the days that had sales (see
+    // lib/chartBuckets.js) — the same buckets as the Sales summary chart.
+    const buckets = bucketList(daily.map((d) => d.date), granularity);
+    const index = new Map(buckets.map((b, i) => [b.key, i]));
+    const rows = buckets.map((b) => {
       const row = { bucket: b.label };
       topItems.forEach((it) => { row[it.name] = 0; });
-      lines.forEach((ln) => {
-        const nm = (ln.name || itemById[ln.item_id]?.name);
-        if (row[nm] !== undefined && b.match(lineDate(ln))) row[nm] = round2(row[nm] + num(ln.line_total) - shareOf(ln));
-      });
       return row;
     });
+    lines.forEach((ln) => {
+      const i = index.get(bucketKey(lineDate(ln), granularity));
+      if (i === undefined) return;
+      const nm = (ln.name || itemById[ln.item_id]?.name);
+      if (rows[i][nm] !== undefined) rows[i][nm] = round2(rows[i][nm] + num(ln.line_total) - shareOf(ln));
+    });
+    return rows;
   };
 
   // ---- Employees -----------------------------------------------------------

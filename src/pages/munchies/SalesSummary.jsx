@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ComposedChart, Area, Line, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -11,6 +11,7 @@ import {
   SUMMARY_METRICS, SUMMARY_CHART_TYPES, GRANULARITY_OPTIONS, rs, rsAxis,
 } from '../../data/munchiesData.js';
 import * as XLSX from 'xlsx-js-style';
+import { bucketDays, autoGranularity, spanDaysOf, tickIntervalFor, granularityUnit } from '../../lib/chartBuckets.js';
 import { useMunchies } from '../../store/MunchiesStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
 
@@ -75,28 +76,23 @@ export default function SalesSummary() {
   // Chart series over the period. Weeks bucket by real ISO week inside the
   // range — the old fixed week list was hard-coded to a sample month, so the
   // chart came up empty whenever "Weeks" was picked.
-  const data = useMemo(() => {
-    if (granularity === 'Weeks') {
-      const buckets = new Map();
-      periodDays.forEach((d) => {
-        const dt = new Date(`${d.date}T00:00:00`);
-        const dow = (dt.getDay() + 6) % 7;               // Monday-based
-        const monday = new Date(dt); monday.setDate(dt.getDate() - dow);
-        const key = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
-        const cur = buckets.get(key) || {
-          key,
-          bucket: monday.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
-          value: 0,
-          expenses: 0,
-        };
-        cur.value += d[active.field] || 0;
-        cur.expenses += d.expenses || 0;
-        buckets.set(key, cur);
-      });
-      return [...buckets.values()].sort((a, b) => a.key.localeCompare(b.key));
-    }
-    return periodDays.map((d) => ({ bucket: d.label, value: d[active.field] || 0, expenses: d.expenses || 0 }));
-  }, [periodDays, granularity, active.field]);
+  // Chart series over the period, bucketed by Days / Weeks / Months / Years
+  // (lib/chartBuckets.js). Empty weeks, months and years between the first and
+  // last sale show as 0 so the trend reads correctly.
+  const data = useMemo(
+    () => bucketDays(periodDays, granularity, { value: active.field, expenses: 'expenses' }),
+    [periodDays, granularity, active.field]
+  );
+
+  // A long period makes a daily axis unreadable, so pick a sensible grouping
+  // whenever the period changes (the dropdown can still override it).
+  useEffect(() => {
+    const dates = periodDays.map((d) => d.date);
+    const start = range?.start || dates[0];
+    const end = range?.end || dates[dates.length - 1];
+    setGranularity(autoGranularity(spanDaysOf(start, end)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range?.key, range?.start, range?.end]);
 
   const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(periodRows, 10);
 
@@ -263,9 +259,6 @@ function renderSummaryChart(type, data, label, withExpenses) {
     main = <Area type="monotone" dataKey="value" name={label} stroke={GREEN} strokeWidth={2} fill="url(#munGross)" dot={{ r: 2.5, fill: GREEN }} activeDot={{ r: 4 }} />;
   }
 
-  // With a long period, one tick per day turns the axis into a black smear —
-  // thin the labels out so ~14 stay readable.
-  const tickInterval = data.length > 14 ? Math.ceil(data.length / 14) - 1 : 0;
 
   return (
     <ComposedChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
@@ -276,7 +269,7 @@ function renderSummaryChart(type, data, label, withExpenses) {
         </linearGradient>
       </defs>
       <CartesianGrid strokeDasharray="0" stroke="#EEF2F6" vertical={false} />
-      <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: '#94A3B8' }} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} interval={tickInterval} angle={-40} textAnchor="end" height={60} />
+      <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: '#94A3B8' }} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} interval={tickIntervalFor(data.length)} angle={-40} textAnchor="end" height={60} />
       <YAxis tickFormatter={rsAxis} tick={{ fontSize: 11, fill: '#94A3B8' }} tickLine={false} axisLine={false} width={80} />
       <Tooltip formatter={(v) => rs(v)} labelStyle={{ fontWeight: 700 }} contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12 }} />
       {withExpenses && <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />}
@@ -336,7 +329,7 @@ function exportSummaryXlsx({ range, active, chartType, granularity, withExpenses
     ...SUMMARY_METRICS.map((m) => [m.label, money(totals[m.key] ?? 0)]),
     [],
     [`Chart data - ${chartTitle} by ${granularity.toLowerCase()}`],
-    [granularity === 'Weeks' ? 'Week' : 'Day', active.label, ...(withExpenses ? ['Expenses'] : [])],
+    [granularityUnit(granularity), active.label, ...(withExpenses ? ['Expenses'] : [])],
     ...data.map((d) => [d.bucket, money(d.value), ...(withExpenses ? [money(d.expenses)] : [])]),
   ];
   const metricsHeader = 7;

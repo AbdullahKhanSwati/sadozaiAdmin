@@ -97,15 +97,16 @@ export const WEEK_BUCKETS = [
   { start: '2026-06-29', end: '2026-07-04', label: '29 Jun - 04 Jul' },
 ];
 
-// Only Days & Weeks make sense for a ~1-month range; the rest are greyed out
-// in the dropdown (mirrors Loyverse for this period).
+// Chart x-axis grouping (lib/chartBuckets.js). Long periods — e.g. Jan 2024 to
+// today — read best by Months or Years; the summary picks one automatically
+// when the period changes. Hours / Quarters stay greyed out.
 export const GRANULARITY_OPTIONS = [
   { value: 'Hours', disabled: true },
   { value: 'Days', disabled: false },
   { value: 'Weeks', disabled: false },
-  { value: 'Months', disabled: true },
+  { value: 'Months', disabled: false },
   { value: 'Quarters', disabled: true },
-  { value: 'Years', disabled: true },
+  { value: 'Years', disabled: false },
 ];
 
 export const SUMMARY_CHART_TYPES = ['Area', 'Line', 'Bar'];

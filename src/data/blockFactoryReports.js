@@ -1,6 +1,6 @@
 // Aggregates real sales (receipts + receipt_lines) into the shapes the report
 // pages render. Pure functions — the store fetches the rows and calls this.
-import { WEEK_BUCKETS } from './munchiesData.js';
+import { bucketDays, bucketKey, bucketList } from '../lib/chartBuckets.js';
 // Same whole-order-discount → lines rule as Munchies (equal share per item).
 import { splitOrderDiscount } from './munchiesReports.js';
 
@@ -145,19 +145,9 @@ export function computeReports({
   const expenseDailyRows = [...expenseByDayCat.values()]
     .sort((a, b) => b.date.localeCompare(a.date) || a.category.localeCompare(b.category));
 
-  const summarySeries = (field, granularity) => {
-    if (granularity === 'Weeks') {
-      return WEEK_BUCKETS.map((w) => {
-        const inWeek = daily.filter((d) => d.date >= w.start && d.date <= w.end);
-        return {
-          bucket: w.label,
-          value: inWeek.reduce((s, d) => s + (d[field] || 0), 0),
-          expenses: inWeek.reduce((s, d) => s + (d.expenses || 0), 0),
-        };
-      });
-    }
-    return daily.map((d) => ({ bucket: d.label, value: d[field] || 0, expenses: d.expenses || 0 }));
-  };
+  // Chart series for any metric, by Days / Weeks / Months / Years.
+  const summarySeries = (field, granularity) =>
+    bucketDays(daily, granularity, { value: field, expenses: 'expenses' });
 
   // ---- Items / categories --------------------------------------------------
   const itemAgg = new Map();
@@ -200,18 +190,22 @@ export function computeReports({
   // Weekly per-item series for the Sales-by-item chart.
   const lineDate = (ln) => isoDate(receiptDate(ln, receipts));
   const itemSeries = (granularity) => {
-    const buckets = granularity === 'Days'
-      ? daily.map((d) => ({ label: d.label, match: (iso) => iso === d.date }))
-      : WEEK_BUCKETS.map((w) => ({ label: w.label, match: (iso) => iso >= w.start && iso <= w.end }));
-    return buckets.map((b) => {
+    // Days / Weeks / Months / Years over the days that had sales (see
+    // lib/chartBuckets.js) — the same buckets as the Sales summary chart.
+    const buckets = bucketList(daily.map((d) => d.date), granularity);
+    const index = new Map(buckets.map((b, i) => [b.key, i]));
+    const rows = buckets.map((b) => {
       const row = { bucket: b.label };
       topItems.forEach((it) => { row[it.name] = 0; });
-      lines.forEach((ln) => {
-        const nm = (ln.name || itemById[ln.item_id]?.name);
-        if (row[nm] !== undefined && b.match(lineDate(ln))) row[nm] = round2(row[nm] + num(ln.line_total) - shareOf(ln));
-      });
       return row;
     });
+    lines.forEach((ln) => {
+      const i = index.get(bucketKey(lineDate(ln), granularity));
+      if (i === undefined) return;
+      const nm = (ln.name || itemById[ln.item_id]?.name);
+      if (rows[i][nm] !== undefined) rows[i][nm] = round2(rows[i][nm] + num(ln.line_total) - shareOf(ln));
+    });
+    return rows;
   };
 
   // ---- Employees -----------------------------------------------------------
