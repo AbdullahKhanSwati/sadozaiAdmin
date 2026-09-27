@@ -8,7 +8,7 @@ import { useShots } from '../../store/ShotsStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
 import BookingDialog from '../../components/dialogs/BookingDialog.jsx';
 import {
-  bookingStatus, bookingPricing, bookingMinutes, minutesLabel, pricingModeLabel, pricingQuantity, pricingRate,
+  bookingStatus, bookingPricing, bookingMinutes, minutesLabel, pricingModeLabel, pricingQuantity, pricingRate, playerCount,
 } from '../../data/bookingInfo.js';
 
 // `liveStatus` is worked out from the booking's date + time (see bookingInfo.js):
@@ -56,7 +56,7 @@ export default function Bookings() {
   // Period totals (exclude cancelled from revenue).
   const live = scoped.filter((b) => b.liveStatus !== 'Cancelled');
   const periodRevenue = live.reduce((s, b) => s + (b.amount || 0), 0);
-  const periodPlayers = live.reduce((s, b) => s + (b.players || 0), 0);
+  const periodPlayers = live.reduce((s, b) => s + playerCount(b), 0);
   const periodActive = scoped.filter((b) => b.liveStatus === 'Active').length;
   const periodCancelled = scoped.length - live.length;
 
@@ -69,7 +69,7 @@ export default function Bookings() {
       { label: 'Member', value: 'memberName' },
       { label: 'Member ID', value: (b) => (b.isMember ? b.memberId : 'Walk-in') },
       { label: 'Type', value: (b) => b.memberType || 'Guest' },
-      { label: 'Players', value: 'players' },
+      { label: 'Players', value: (b) => playerCount(b) },
       { label: 'Pricing', value: (b) => pricingModeLabel(b) },
       { label: 'Games', value: (b) => (b.pricingMode === 'game' ? Math.max(1, Math.round(Number(b.units) || 1)) : '') },
       { label: 'Duration', value: (b) => minutesLabel(bookingMinutes(b)) },
@@ -191,7 +191,7 @@ function ListView({ list, onPick }) {
                 <td className="table-td">
                   <span className="chip bg-slate-100 text-ink-600">{b.memberType || 'Guest'}</span>
                 </td>
-                <td className="table-td">{b.players}</td>
+                <td className="table-td">{playerCount(b)}</td>
                 <td className="table-td whitespace-nowrap">
                   <div className="font-semibold">{pricingModeLabel(b)}</div>
                   <div className="text-[11px] text-ink-400">

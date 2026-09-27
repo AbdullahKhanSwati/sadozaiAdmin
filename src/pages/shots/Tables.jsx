@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  Calendar, Edit3, Grid3X3, Plus, Search, Sparkles, Tags, Wrench,
+  Calendar, Edit3, Grid3X3, Play, Plus, Search, Sparkles, Tags, Wrench,
 } from 'lucide-react';
 import { rupees } from '../../data/shotsData.js';
 import { modesForType, rulesFor, tierLabel, unitSuffix } from '../../data/pricing.js';
@@ -9,6 +9,7 @@ import { useShots } from '../../store/ShotsStore.jsx';
 import TableDialog from '../../components/dialogs/TableDialog.jsx';
 import TableTypesDialog from '../../components/dialogs/TableTypesDialog.jsx';
 import BookingDialog from '../../components/dialogs/BookingDialog.jsx';
+import { bookingPricing, currentBookingFor, nextBookingFor, playerCount } from '../../data/bookingInfo.js';
 
 const STATUS_FILTERS = (list) => [
   { value: 'All',         label: 'All',         count: list.length },
@@ -17,12 +18,18 @@ const STATUS_FILTERS = (list) => [
 ];
 
 export default function Tables() {
-  const { tables, tableTypes, pricingRules } = useShots();
+  const { tables, tableTypes, pricingRules, bookings } = useShots();
+  // Re-check "now playing" every minute.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60 * 1000);
+    return () => clearInterval(t);
+  }, []);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('All');
   const [type, setType] = useState('All');
   const [tableDialog, setTableDialog] = useState({ open: false, table: null });
-  const [bookingDialog, setBookingDialog] = useState({ open: false, table: null });
+  const [bookingDialog, setBookingDialog] = useState({ open: false, table: null, booking: null });
   const [typesOpen, setTypesOpen] = useState(false);
 
   const typeFilters = useMemo(
@@ -103,8 +110,11 @@ export default function Tables() {
               key={t.id}
               t={t}
               pricingRules={pricingRules}
+              current={currentBookingFor(bookings, t.id, now)}
+              next={nextBookingFor(bookings, t.id, now)}
               onEdit={() => setTableDialog({ open: true, table: t })}
-              onBook={() => setBookingDialog({ open: true, table: t })}
+              onBook={() => setBookingDialog({ open: true, table: t, booking: null })}
+              onOpenBooking={(b) => setBookingDialog({ open: true, table: t, booking: b })}
             />
           ))}
         </div>
@@ -118,15 +128,15 @@ export default function Tables() {
       <TableTypesDialog open={typesOpen} onClose={() => setTypesOpen(false)} />
       <BookingDialog
         open={bookingDialog.open}
-        booking={null}
+        booking={bookingDialog.booking || null}
         defaults={bookingDialog.table ? { tableId: bookingDialog.table.id } : undefined}
-        onClose={() => setBookingDialog({ open: false, table: null })}
+        onClose={() => setBookingDialog({ open: false, table: null, booking: null })}
       />
     </>
   );
 }
 
-function TableCard({ t, onEdit, onBook, pricingRules = [] }) {
+function TableCard({ t, onEdit, onBook, onOpenBooking, pricingRules = [], current = null, next = null }) {
   const modes = modesForType(pricingRules, t.type);
   return (
     <div className="card card-hover p-0 relative overflow-hidden">
@@ -163,9 +173,14 @@ function TableCard({ t, onEdit, onBook, pricingRules = [] }) {
                       {list.map((r) => {
                         const tier = tierLabel(r, list);
                         return (
-                          <span key={r.id} className="block leading-tight">
+                          <span key={r.id} className="block leading-tight mb-1">
+                            {tier && <span className="block text-[11px] text-ink-400 font-medium">{tier}</span>}
+                            <span className="text-[11px] text-ink-500 font-medium">Member </span>
                             {rupees(r.memberPrice)} <span className="text-[11px] text-ink-500 font-medium">{unitSuffix(m.value)}</span>
-                            {tier && <span className="text-[11px] text-ink-400 font-medium"> · {tier}</span>}
+                            <span className="block">
+                              <span className="text-[11px] text-ink-500 font-medium">Non-member </span>
+                              {rupees(r.nonMemberPrice)} <span className="text-[11px] text-ink-500 font-medium">{unitSuffix(m.value)}</span>
+                            </span>
                           </span>
                         );
                       })}
@@ -191,6 +206,31 @@ function TableCard({ t, onEdit, onBook, pricingRules = [] }) {
             <div className="text-sm text-ink-700 mt-0.5 font-semibold">{t.openTime} – {t.closeTime}</div>
           </div>
         </div>
+
+        {current ? (
+          <button
+            type="button"
+            onClick={() => onOpenBooking(current)}
+            className="mt-3 w-full text-left rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 hover:bg-emerald-100 transition"
+          >
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-emerald-700 font-bold">
+              <Play className="w-3 h-3" /> Playing now · {current.start} – {current.end}
+            </div>
+            <div className="text-sm font-bold text-ink-800 truncate">{current.memberName || 'Guest'}</div>
+            <div className="text-[12px] text-ink-600">
+              {bookingPricing(current)} · {playerCount(current)} player(s) · {rupees(current.amount)}
+            </div>
+          </button>
+        ) : next ? (
+          <button
+            type="button"
+            onClick={() => onOpenBooking(next)}
+            className="mt-3 w-full text-left rounded-xl bg-blue-50 border border-blue-100 px-3 py-2 hover:bg-blue-100 transition"
+          >
+            <div className="text-[10px] uppercase tracking-widest text-blue-700 font-bold">Next today · {next.start} – {next.end}</div>
+            <div className="text-[12px] text-ink-700 truncate">{next.memberName || 'Guest'} · {bookingPricing(next)}</div>
+          </button>
+        ) : null}
 
         {t.status === 'Maintenance' && (
           <div className="mt-3 rounded-xl bg-rose-50 border border-rose-100 px-3 py-2 text-xs text-rose-700 flex items-center gap-2">

@@ -93,3 +93,22 @@ export function bookingPricing(b) {
   }
   return `${pricingModeLabel(b)} · ${qty}${rate ? ` @ ${rate}` : ''}`;
 }
+
+/** Players on a booking: the stored count, never fewer than its members. */
+export function playerCount(b) {
+  return Math.max(Number(b?.players) || 1, Array.isArray(b?.members) ? b.members.length : 0);
+}
+
+/** The booking being played on a table right now (null if none). */
+export function currentBookingFor(bookings = [], tableId, now = new Date()) {
+  return bookings.find((b) => b.tableId === tableId && bookingStatus(b, now) === 'Active') || null;
+}
+
+/** The next booking on a table later today (null if none). */
+export function nextBookingFor(bookings = [], tableId, now = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  return bookings
+    .filter((b) => b.tableId === tableId && b.date === today && bookingStatus(b, now) === 'Upcoming')
+    .sort((a, b) => (a.start || '').localeCompare(b.start || ''))[0] || null;
+}

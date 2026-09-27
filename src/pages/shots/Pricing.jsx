@@ -235,11 +235,14 @@ function RuleRow({ rule, mode, siblings }) {
   return (
     <div className={['rounded-2xl border p-4', form.active ? 'border-slate-200' : 'border-slate-200 bg-slate-50 opacity-70'].join(' ')}>
       <div className="flex items-center justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2 text-sm font-extrabold">
+        <div className="flex flex-wrap items-center gap-2 text-sm font-extrabold">
           <Users className="w-4 h-4 text-ink-400" />
           {tierLabel(rule, siblings) || 'Any number of players'}
           <span className="chip bg-slate-100 text-ink-600 font-bold">
-            {rupees(rule.memberPrice)} {unitSuffix(mode.value)}
+            Member {rupees(rule.memberPrice)} {unitSuffix(mode.value)}
+          </span>
+          <span className="chip bg-amber-50 text-amber-700 font-bold">
+            Non-member {rupees(rule.nonMemberPrice)} {unitSuffix(mode.value)}
           </span>
         </div>
         <div className="flex items-center gap-2">

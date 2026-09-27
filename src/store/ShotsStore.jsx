@@ -287,9 +287,12 @@ export function ShotsProvider({ children }) {
     setBookings((arr) => arr.map((b) => (b.id === id ? rowToBooking(updated) : b)));
   }, []);
 
+  // PERMANENT delete — Owner only (owner_delete_booking checks the role; RLS
+  // blocks everyone else too). Throws so the page can show why it failed.
+  // Everyone else cancels instead (status = 'Cancelled', record kept).
   const deleteBooking = useCallback(async (id) => {
-    const { error } = await supabase.from('bookings').delete().eq('id', id);
-    if (error) { console.error('deleteBooking', error); return; }
+    const { error } = await supabase.rpc('owner_delete_booking', { p_id: id });
+    if (error) { console.error('deleteBooking', error); throw error; }
     setBookings((arr) => arr.filter((b) => b.id !== id));
   }, []);
 

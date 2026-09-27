@@ -12,6 +12,8 @@ import {
   priceOf, ruleConstraints, rulesFor, slotsForMinutes, tierLabel, unitSuffix,
 } from '../../data/pricing.js';
 import { useShots } from '../../store/ShotsStore.jsx';
+import { useAuth } from '../../context/AuthContext.jsx';
+import { bookingPricing, bookingStatus } from '../../data/bookingInfo.js';
 
 const MAX_MEMBERS = 4;
 const MAX_PLAYERS = 8;
@@ -38,8 +40,12 @@ const blankPicker = (defaults) => ({
 
 export default function BookingDialog({ open, onClose, booking, defaults }) {
   const {
-    tables, members, bookings, bookingDurations, pricingRules, addBooking, updateBooking,
+    tables, members, bookings, bookingDurations, pricingRules, addBooking, updateBooking, deleteBooking,
   } = useShots();
+  const { session } = useAuth();
+  // Permanent delete is for the Owner only (Admins/staff can only cancel).
+  const isOwner = String(session?.role || '').toLowerCase() === 'owner';
+  const [deleting, setDeleting] = useState(false);
   const editing = !!booking;
   const [form, setForm] = useState(() => blankPicker(defaults));
   const [error, setError] = useState('');
@@ -57,18 +63,20 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
     if (!open) return;
     const defaultMin = durations.find((d) => d.minutes === 60)?.minutes ?? durations[0]?.minutes ?? 60;
     if (editing) {
-      const mins = (booking.intervals?.length || 4) * 15;
+      const mins = Number(booking.durationMinutes) || (booking.intervals?.length || 4) * 15;
       setForm({
         tableId: booking.tableId,
         date: booking.date,
         start: booking.start,
-        durationMin: durations.some((d) => d.minutes === mins) ? mins : defaultMin,
+        durationMin: mins || defaultMin,
         mode: booking.pricingMode || null,
         players: Math.min(MAX_PLAYERS, Math.max(1, Number(booking.players) || 2)),
         games: booking.pricingMode === 'game' ? Math.max(1, Math.round(Number(booking.units) || 1)) : 1,
         minutes: booking.pricingMode === 'minute' ? (Number(booking.durationMinutes) || 30) : 30,
         isMember: booking.isMember !== false,
-        members: booking.members?.map((m) => ({ id: m.id, name: m.name, type: m.type })) || (booking.memberId ? [{ id: booking.memberId, name: booking.memberName, type: booking.memberType }] : []),
+        members: booking.members?.length
+          ? booking.members.map((m) => ({ id: m.id, name: m.name, type: m.type }))
+          : (booking.memberId ? [{ id: booking.memberId, name: booking.memberName, type: booking.memberType }] : []),
         guestName: !booking.isMember ? booking.memberName : '',
         guestPhone: '',
         discountType: booking.discount?.type || 'none',
@@ -80,12 +88,19 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
     }
     setError('');
     setMemberQuery('');
-  }, [open, editing, booking, defaults, durations]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, booking?.id, durations.length]);
 
   const setField = (k, v) => setForm((s) => ({ ...s, [k]: v }));
 
   const table = useMemo(() => tables.find((t) => t.id === form.tableId), [tables, form.tableId]);
-  const duration = durations.find((d) => d.minutes === form.durationMin) || durations[0];
+  // Preset durations + the booking's own length when it isn't one of them.
+  const durationChoices = useMemo(() => {
+    if (!form.durationMin || durations.some((d) => d.minutes === form.durationMin)) return durations;
+    return [...durations, { minutes: form.durationMin, label: minutesToLabel(form.durationMin) }]
+      .sort((a, b) => a.minutes - b.minutes);
+  }, [durations, form.durationMin]);
+  const duration = durationChoices.find((d) => d.minutes === form.durationMin) || durationChoices[0];
   // ---- Pricing ------------------------------------------------------------
   // Modes and prices per table type come from the Pricing page. A table type
   // with no rules keeps its legacy per-table hourly rates.
@@ -227,6 +242,20 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
     onClose();
   };
 
+  const handlePermanentDelete = async () => {
+    if (!editing || !isOwner) return;
+    if (!confirm(`PERMANENTLY delete booking #${booking.id} (${booking.memberName || 'guest'}, ${booking.date} ${booking.start}–${booking.end}, ${rupees(booking.amount)})?\n\nIt is removed from all reports and cannot be recovered. To keep a record, use "Cancel booking" instead.`)) return;
+    setDeleting(true);
+    try {
+      await deleteBooking(booking.id);
+      onClose();
+    } catch (e) {
+      setError(e?.message || 'Could not delete this booking.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleDelete = () => {
     if (!editing) return;
     if (booking.status === 'Cancelled') { onClose(); return; }
@@ -256,6 +285,18 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-5 h-5" /></button>
         </div>
+
+        {editing && (
+          <div className="mb-5 rounded-2xl border border-brand-200 bg-brand-50/60 px-4 py-3 text-sm">
+            <div className="text-[11px] uppercase tracking-widest text-brand-700 font-bold">Current booking</div>
+            <div className="font-semibold text-ink-800 mt-0.5">
+              {booking.memberName || 'Guest'} · {booking.date} · {booking.start} – {booking.end} · {bookingStatus(booking)}
+            </div>
+            <div className="text-ink-600">
+              {bookingPricing(booking)} · {Math.max(Number(booking.players) || 1, booking.members?.length || 0)} player(s) · {rupees(booking.amount)}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* LEFT: When + Where */}
@@ -459,7 +500,7 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
-                  {durations.map((d) => {
+                  {durationChoices.map((d) => {
                     const active = form.durationMin === d.minutes;
                     return (
                       <button
@@ -615,9 +656,21 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
 
         <div className="flex items-center justify-between gap-2 mt-6">
           {editing ? (
-            booking.status === 'Cancelled'
-              ? <span className="chip bg-rose-50 text-rose-600">Already cancelled</span>
-              : <button onClick={handleDelete} className="btn-danger"><Trash2 className="w-4 h-4" /> Cancel booking</button>
+            <div className="flex flex-wrap items-center gap-2">
+              {booking.status === 'Cancelled'
+                ? <span className="chip bg-rose-50 text-rose-600">Already cancelled</span>
+                : <button onClick={handleDelete} className="btn-danger"><Trash2 className="w-4 h-4" /> Cancel booking</button>}
+              {isOwner && (
+                <button
+                  onClick={handlePermanentDelete}
+                  disabled={deleting}
+                  className="px-3 py-2 rounded-xl text-sm font-bold text-white bg-rose-700 hover:bg-rose-800 disabled:opacity-60 inline-flex items-center gap-1.5"
+                  title="Owner only — removes the booking completely"
+                >
+                  <Trash2 className="w-4 h-4" /> {deleting ? 'Deleting…' : 'Delete permanently'}
+                </button>
+              )}
+            </div>
           ) : <span />}
           <div className="flex gap-2">
             <button onClick={onClose} className="btn-ghost">Close</button>
