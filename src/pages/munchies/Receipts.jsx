@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Ban, ChevronDown, Receipt, ReceiptText, RotateCcw, Search, X } from 'lucide-react';
+import { Ban, ChevronDown, Receipt, ReceiptText, RotateCcw, Search, Trash2, X } from 'lucide-react';
 import { ReportToolbar, Panel, usePagination, TablePagination, defaultRange, rangeLabel } from './munchiesUi.jsx';
 import { rs } from '../../data/munchiesData.js';
 import { useMunchies, useReports } from '../../store/MunchiesStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
+import { useAuth } from '../../context/AuthContext.jsx';
 
 const TABS = [
   { key: 'all', label: 'All receipts', icon: Receipt, tone: 'bg-slate-500' },
@@ -34,7 +35,10 @@ function discountRowsFor(d) {
 }
 
 export default function Receipts() {
-  const { cancelReceipt, restoreReceipt } = useMunchies();
+  const { cancelReceipt, restoreReceipt, deleteOrder } = useMunchies();
+  const { session } = useAuth();
+  // Permanent delete is for the Owner only (admins and staff can only cancel).
+  const isOwner = String(session?.role || '').toLowerCase() === 'owner';
   // Month to date by default; the picker in the toolbar changes it, and every
   // count, row and export below follows the selected period.
   const [range, setRange] = useState(defaultRange);
@@ -98,6 +102,8 @@ export default function Receipts() {
       { label: 'Qty', value: (l) => l.qty || 0 },
       { label: 'Unit price', value: (l) => l.unit || 0 },
       { label: 'Gross total', value: (l) => l.grossTotal || 0 },
+      { label: 'Item discount', value: (l) => l.itemDiscount || 0 },
+      { label: 'Order discount share', value: (l) => l.orderDiscountShare || 0 },
       { label: 'Discount', value: (l) => l.discount || 0 },
       { label: 'Discount name', value: 'discountName' },
       { label: 'Net total', value: (l) => l.netTotal || 0 },
@@ -130,6 +136,20 @@ export default function Receipts() {
     try { await restoreReceipt(r.id); }
     catch (e) { window.alert(e?.message || 'Could not restore this order.'); }
     finally { setBusy(false); }
+  };
+
+  const onDeleteForever = async (r) => {
+    if (!r) return;
+    if (!window.confirm(`PERMANENTLY delete order ${r.no} (${rs(r.total)})?\n\nIt is removed from every report and cannot be recovered. To keep a record, use "Cancel order" instead.`)) return;
+    setBusy(true);
+    try {
+      await deleteOrder(r.id);
+      setOpenId(null);
+    } catch (e) {
+      window.alert(e?.message || 'Could not delete this order.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const detail = openId ? receiptById?.[openId] : null;
@@ -350,6 +370,16 @@ export default function Receipts() {
               </div>
             </div>
             <div className="flex justify-end gap-3 px-5 py-4 border-t border-slate-100 sticky bottom-0 bg-white">
+              {isOwner && (
+                <button
+                  onClick={() => onDeleteForever(detailRow)}
+                  disabled={busy}
+                  title="Owner only — removes the order completely"
+                  className="mr-auto inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                >
+                  <Trash2 className="w-4 h-4" /> Delete permanently
+                </button>
+              )}
               {detail.cancelled ? (
                 <button
                   onClick={() => onRestore(detailRow)}

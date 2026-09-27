@@ -233,6 +233,17 @@ export function MunchiesProvider({ children }) {
   }, [reloadSales]);
 
   const cancelReceipt = useCallback((id, reason) => setReceiptStatus(id, 'cancelled', reason), [setReceiptStatus]);
+
+  // PERMANENT delete — Owner only. munchies_owner_delete_order() checks the role
+  // (and RLS blocks everyone else); the receipt's lines are removed with it.
+  const deleteOrder = useCallback(async (id) => {
+    const { error } = await sb.rpc('munchies_owner_delete_order', { p_id: id });
+    if (error) throw new Error(error.message || 'Could not delete this order.');
+    setSalesRows((s) => ({
+      receipts: s.receipts.filter((r) => r.id !== id),
+      lines: s.lines.filter((l) => l.receipt_id !== id),
+    }));
+  }, []);
   const restoreReceipt = useCallback((id) => setReceiptStatus(id, 'completed'), [setReceiptStatus]);
 
   // ---- Expense categories ---------------------------------------------------
@@ -286,7 +297,7 @@ export function MunchiesProvider({ children }) {
     expenses, expenseCategories, reloadExpenses, reloadExpenseCategories,
     addExpenseCategory, updateExpenseCategory, deleteExpenseCategory,
     // orders
-    cancelReceipt, restoreReceipt, reloadSales,
+    cancelReceipt, restoreReceipt, reloadSales, deleteOrder,
     // items
     saveItem: makeSave('items'), deleteItem: makeDelete('items'), deleteItems: makeDeleteMany('items'),
     // categories
@@ -314,7 +325,7 @@ export function MunchiesProvider({ children }) {
     state, settings, reports, salesRows, ready, makeSave, makeDelete, makeDeleteMany, saveSettings, reorderModifiers,
     expenses, expenseCategories, reloadExpenses, reloadExpenseCategories,
     addExpenseCategory, updateExpenseCategory, deleteExpenseCategory,
-    cancelReceipt, restoreReceipt, reloadSales,
+    cancelReceipt, restoreReceipt, reloadSales, deleteOrder,
   ]);
 
   return <MunchiesContext.Provider value={value}>{children}</MunchiesContext.Provider>;

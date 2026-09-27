@@ -69,6 +69,53 @@ export function weekBuckets(days) {
   return [...buckets.values()].sort((a, b) => a.key.localeCompare(b.key));
 }
 
+// ---- Whole-order discount → lines -------------------------------------------
+// A discount on the WHOLE order (receipts.discount) is shared out over its
+// lines so line-level figures (line export, sales by item / category) add up to
+// the receipt total. Rule (as requested): the order discount is divided equally
+// per ITEM — e.g. Rs 375 over 2 items = Rs 187.50 each; a line with qty 2 counts
+// as 2 items. A line never goes below zero: whatever doesn't fit on a cheap line
+// is moved to the others. Amounts are rounded to 2 decimals and the last line
+// absorbs the rounding, so the shares always sum to exactly the order discount
+// (or to the lines' value, if the discount is larger than the order).
+//   lines: the receipt's lines (after their own per-item discounts)
+//   returns Map(line object → share)
+export function splitOrderDiscount(orderDiscount, lines) {
+  const out = new Map();
+  const cents = (v) => Math.round(num(v) * 100);
+  let remaining = cents(orderDiscount);
+  if (remaining <= 0 || !lines?.length) return out;
+
+  const state = lines.map((ln) => ({
+    ln,
+    weight: Math.max(1, num(ln.qty) || 1),
+    cap: Math.max(0, cents(ln.line_total)),   // what is left on the line to discount
+    share: 0,
+  }));
+  remaining = Math.min(remaining, state.reduce((t, x) => t + x.cap, 0));
+
+  // Hand out by item count; lines that hit their cap drop out and the rest
+  // share what is left, until everything is placed.
+  for (let guard = 0; remaining > 0 && guard < 50; guard += 1) {
+    const open = state.filter((x) => x.share < x.cap);
+    if (!open.length) break;
+    const units = open.reduce((t, x) => t + x.weight, 0);
+    let handed = 0;
+    open.forEach((x, i) => {
+      const want = i === open.length - 1
+        ? remaining - handed                                   // last one takes the rounding
+        : Math.floor((remaining * x.weight) / units);
+      const give = Math.max(0, Math.min(want, x.cap - x.share));
+      x.share += give;
+      handed += give;
+    });
+    remaining -= handed;
+    if (handed === 0) break;
+  }
+  state.forEach((x) => out.set(x.ln, x.share / 100));
+  return out;
+}
+
 export function computeReports({
   receipts: allReceipts = [], lines: allLines = [], items = [], categories = [], modifiers = [],
   employees = [], customers = [], expenses: allExpenses = [], range = null,
@@ -113,6 +160,20 @@ export function computeReports({
       }
     }
   });
+  // Each line's share of its receipt's whole-order discount (see splitOrderDiscount).
+  const periodLinesByReceipt = new Map();
+  periodLines.forEach((ln) => {
+    if (!periodLinesByReceipt.has(ln.receipt_id)) periodLinesByReceipt.set(ln.receipt_id, []);
+    periodLinesByReceipt.get(ln.receipt_id).push(ln);
+  });
+  const orderShare = new Map();
+  receipts.forEach((r) => {
+    if (num(r.discount) <= 0) return;
+    splitOrderDiscount(r.discount, periodLinesByReceipt.get(r.id) || []).forEach((v, ln) => orderShare.set(ln, v));
+  });
+  const shareOf = (ln) => orderShare.get(ln) || 0;
+  const round2 = (v) => Math.round(v * 100) / 100;
+
   // Total discount on a receipt = whole-ticket discount + every per-item discount.
   const receiptDiscount = (r) => num(r.discount) + (lineDiscByReceipt[r.id] || 0);
   const receiptDiscountNames = (r) => {
@@ -211,18 +272,20 @@ export function computeReports({
       category: it ? (catById[it.categoryId]?.name || '—') : '—', sold: 0, net: 0, gross: 0, discount: 0, itemId: ln.item_id, date: lineDate(ln),
     };
     const base = ln.base_total != null ? num(ln.base_total) : num(ln.line_total);
+    // Net after the item's own discount AND its share of any whole-order discount.
+    const share = shareOf(ln);
     cur.sold += num(ln.qty);
-    cur.net += num(ln.line_total);
+    cur.net = round2(cur.net + num(ln.line_total) - share);
     cur.gross += base;
-    cur.discount += Math.max(0, base - num(ln.line_total));
+    cur.discount = round2(cur.discount + Math.max(0, base - num(ln.line_total)) + share);
     itemAgg.set(key, cur);
 
     const catName = it ? (catById[it.categoryId]?.name || 'Uncategorized') : 'Uncategorized';
     const c = catAgg.get(catName) || { name: catName, sold: 0, net: 0, gross: 0, discount: 0 };
     c.sold += num(ln.qty);
-    c.net += num(ln.line_total);
+    c.net = round2(c.net + num(ln.line_total) - share);
     c.gross += base;
-    c.discount += Math.max(0, base - num(ln.line_total));
+    c.discount = round2(c.discount + Math.max(0, base - num(ln.line_total)) + share);
     catAgg.set(catName, c);
   });
 
@@ -252,7 +315,7 @@ export function computeReports({
       topItems.forEach((it) => { row[it.name] = 0; });
       lines.forEach((ln) => {
         const nm = (ln.name || itemById[ln.item_id]?.name);
-        if (row[nm] !== undefined && b.match(lineDate(ln))) row[nm] += num(ln.line_total);
+        if (row[nm] !== undefined && b.match(lineDate(ln))) row[nm] = round2(row[nm] + num(ln.line_total) - shareOf(ln));
       });
       return row;
     });
@@ -314,6 +377,10 @@ export function computeReports({
       if (!head) return null;
       const base = ln.base_total != null ? num(ln.base_total) : num(ln.line_total);
       const it = itemById[ln.item_id];
+      const itemDiscount = Math.max(0, base - num(ln.line_total));   // discount set on this line
+      const share = shareOf(ln);                                     // its part of the whole-order discount
+      const receipt = receiptById0[ln.receipt_id];
+      const orderDiscName = share > 0 ? (receipt?.discount_name || 'Order discount') : '';
       return {
         receiptId: ln.receipt_id,
         no: head.no,
@@ -332,9 +399,12 @@ export function computeReports({
         qty: num(ln.qty),
         unit: num(ln.unit),
         grossTotal: base,
-        discount: Math.max(0, base - num(ln.line_total)),
-        discountName: ln.discount_name || '',
-        netTotal: num(ln.line_total),
+        itemDiscount,
+        orderDiscountShare: share,
+        discount: round2(itemDiscount + share),
+        discountName: [itemDiscount > 0 ? (ln.discount_name || 'Discount') : '', orderDiscName ? `${orderDiscName} (order)` : '']
+          .filter(Boolean).join(' + '),
+        netTotal: round2(num(ln.line_total) - share),
         receiptDiscount: head.discount,
         receiptTotal: head.total,
       };
