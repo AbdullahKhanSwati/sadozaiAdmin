@@ -43,8 +43,10 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
     tables, members, bookings, bookingDurations, pricingRules, addBooking, updateBooking, deleteBooking,
   } = useShots();
   const { session } = useAuth();
-  // Permanent delete is for the Owner only (Admins/staff can only cancel).
-  const isOwner = String(session?.role || '').toLowerCase() === 'owner';
+  // Permanent delete is available to everyone who can open this admin panel
+  // (admin / owner logins). Staff only use the app, where a booking is
+  // cancelled and its record kept.
+  const isOwner = ['admin', 'owner'].includes(String(session?.role || '').toLowerCase());
   const [deleting, setDeleting] = useState(false);
   const editing = !!booking;
   const [form, setForm] = useState(() => blankPicker(defaults));
@@ -665,7 +667,7 @@ export default function BookingDialog({ open, onClose, booking, defaults }) {
                   onClick={handlePermanentDelete}
                   disabled={deleting}
                   className="px-3 py-2 rounded-xl text-sm font-bold text-white bg-rose-700 hover:bg-rose-800 disabled:opacity-60 inline-flex items-center gap-1.5"
-                  title="Owner only — removes the booking completely"
+                  title="Removes the booking completely"
                 >
                   <Trash2 className="w-4 h-4" /> {deleting ? 'Deleting…' : 'Delete permanently'}
                 </button>
