@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Ban, ChevronDown, Receipt, ReceiptText, RotateCcw, Search, Trash2, X } from 'lucide-react';
 import { ReportToolbar, Panel, usePagination, TablePagination, defaultRange, rangeLabel } from './munchiesUi.jsx';
 import { rs } from '../../data/munchiesData.js';
 import { useMunchies, useReports } from '../../store/MunchiesStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { supabaseMunchies } from '../../lib/supabaseMunchies.js';
 
 const TABS = [
   { key: 'all', label: 'All receipts', icon: Receipt, tone: 'bg-slate-500' },
@@ -35,10 +36,21 @@ function discountRowsFor(d) {
 }
 
 export default function Receipts() {
-  const { cancelReceipt, restoreReceipt, deleteOrder } = useMunchies();
+  const { cancelReceipt, restoreReceipt, deleteOrder, employees } = useMunchies();
   const { session } = useAuth();
   // Permanent delete is for the Owner only (admins and staff can only cancel).
-  const isOwner = String(session?.role || '').toLowerCase() === 'owner';
+  // Owner = login role 'owner' OR the Owner role on the Employees page — the
+  // database decides (munchies_is_owner) and is asked again whenever the
+  // employee list changes.
+  const [dbOwner, setDbOwner] = useState(false);
+  useEffect(() => {
+    let active = true;
+    supabaseMunchies.rpc('munchies_is_owner').then(({ data, error }) => {
+      if (active) setDbOwner(!error && data === true);
+    });
+    return () => { active = false; };
+  }, [session?.user?.id, employees]);
+  const isOwner = dbOwner || String(session?.role || '').toLowerCase() === 'owner';
   // Month to date by default; the picker in the toolbar changes it, and every
   // count, row and export below follows the selected period.
   const [range, setRange] = useState(defaultRange);
@@ -283,6 +295,16 @@ export default function Receipts() {
                         className="inline-flex items-center gap-1 text-xs font-semibold text-ink-500 hover:text-rose-600 disabled:opacity-40"
                       >
                         <Ban className="w-3.5 h-3.5" /> Cancel
+                      </button>
+                    )}
+                    {isOwner && (
+                      <button
+                        onClick={() => onDeleteForever(r)}
+                        disabled={busy}
+                        title="Owner only — removes the order completely"
+                        className="ml-3 inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 disabled:opacity-40"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Delete
                       </button>
                     )}
                   </td>
