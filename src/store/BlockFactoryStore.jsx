@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { supabaseBlockFactory as sb } from '../lib/supabaseBlockFactory.js';
 import { computeReports, saleIso } from '../data/blockFactoryReports.js';
+import { sortNatural, sortItemsByMenu } from '../lib/naturalSort.js';
 
 // Live catalog store for the Block Factory admin, backed by the Block Factory Supabase
 // project. The exported API (state arrays + save/delete fns + helpers) is kept
@@ -58,6 +59,24 @@ const ENTITIES = [
 const MAP_BY_STATE = Object.fromEntries(ENTITIES.map(([s, , m]) => [s, m]));
 const TABLE_BY_STATE = Object.fromEntries(ENTITIES.map(([s, t]) => [s, t]));
 
+// Every list the UI shows comes out of the store already in its display order
+// (same rule as Munchies and the Block Factory app):
+//   categories → natural order ("1 Blocks, 1.1 …, 1.10 …, 2 …", then A–Z)
+//   items      → grouped by that category order, then by item code / name
+// so pages and dropdowns never have to sort for themselves.
+const ORDERED = {
+  categories: (arr) => sortNatural(arr, (c) => c.name),
+  items: (arr, cats) => sortItemsByMenu(arr, cats || []),
+};
+const ordered = (stateKey, arr, cats) => (ORDERED[stateKey] ? ORDERED[stateKey](arr, cats) : arr);
+// Replace one list in the state, re-ordered; a category change re-orders items too.
+const withOrdered = (s, stateKey, arr) => {
+  const next = { ...s, [stateKey]: ordered(stateKey, arr, s.categories) };
+  if (stateKey === 'categories') next.items = ordered('items', s.items, next.categories);
+  return next;
+};
+const sortedExpenseCategories = (rows) => sortNatural(rows, (c) => c.name);
+
 export function BlockFactoryProvider({ children }) {
   const [state, setState] = useState({
     categories: [], modifiers: [], items: [], discounts: [], roles: [], employees: [], customers: [],
@@ -72,7 +91,7 @@ export function BlockFactoryProvider({ children }) {
   const reloadEntity = useCallback(async (stateKey) => {
     const [, table, , order] = ENTITIES.find(([s]) => s === stateKey);
     const { data } = await sb.from(table).select('*').order(order, { ascending: true, nullsFirst: true });
-    setState((s) => ({ ...s, [stateKey]: (data || []).map((r) => fromRow(r, MAP_BY_STATE[stateKey])) }));
+    setState((s) => withOrdered(s, stateKey, (data || []).map((r) => fromRow(r, MAP_BY_STATE[stateKey]))));
   }, []);
 
   const reloadSales = useCallback(async () => {
@@ -101,7 +120,7 @@ export function BlockFactoryProvider({ children }) {
   const reloadExpenseCategories = useCallback(async () => {
     const { data } = await sb.from('expense_categories').select('*')
       .order('sort_order', { ascending: true, nullsFirst: true }).order('name', { ascending: true });
-    setExpenseCategories(data || []);
+    setExpenseCategories(sortedExpenseCategories(data || []));
   }, []);
 
   // Initial load.
@@ -121,6 +140,8 @@ export function BlockFactoryProvider({ children }) {
         next[stateKey] = (results[i].data || []).map((r) => fromRow(r, map));
         if (results[i].error) console.error(`load ${stateKey}`, results[i].error);
       });
+      next.categories = ordered('categories', next.categories);
+      next.items = ordered('items', next.items, next.categories);
       setState(next);
       if (s.data) setSettings(fromRow(s.data, SETTINGS_KEYS));
       setSalesRows({ receipts: rc.data || [], lines: rl.data || [] });
@@ -151,14 +172,14 @@ export function BlockFactoryProvider({ children }) {
     const table = TABLE_BY_STATE[stateKey];
     const map = MAP_BY_STATE[stateKey];
     if (obj.id) {
-      setState((s) => ({ ...s, [stateKey]: s[stateKey].map((x) => (x.id === obj.id ? { ...x, ...obj } : x)) }));
+      setState((s) => withOrdered(s, stateKey, s[stateKey].map((x) => (x.id === obj.id ? { ...x, ...obj } : x))));
       const { data, error } = await sb.from(table).update(toRow(obj, map)).eq('id', obj.id).select().single();
       if (error) { console.error(`update ${stateKey}`, error); await reloadEntity(stateKey); throw error; }
-      setState((s) => ({ ...s, [stateKey]: s[stateKey].map((x) => (x.id === obj.id ? fromRow(data, map) : x)) }));
+      setState((s) => withOrdered(s, stateKey, s[stateKey].map((x) => (x.id === obj.id ? fromRow(data, map) : x))));
       return obj.id;
     }
     const tempId = `tmp_${Math.random().toString(36).slice(2, 9)}`;
-    setState((s) => ({ ...s, [stateKey]: [...s[stateKey], { ...obj, id: tempId }] }));
+    setState((s) => withOrdered(s, stateKey, [...s[stateKey], { ...obj, id: tempId }]));
     const { data, error } = await sb.from(table).insert(toRow(obj, map)).select().single();
     if (error) {
       console.error(`insert ${stateKey}`, error);
@@ -166,7 +187,7 @@ export function BlockFactoryProvider({ children }) {
       throw error;
     }
     const saved = fromRow(data, map);
-    setState((s) => ({ ...s, [stateKey]: s[stateKey].map((x) => (x.id === tempId ? saved : x)) }));
+    setState((s) => withOrdered(s, stateKey, s[stateKey].map((x) => (x.id === tempId ? saved : x))));
     return saved.id;
   }, [reloadEntity]);
 

@@ -3,6 +3,7 @@
 import { bucketDays, bucketKey, bucketList } from '../lib/chartBuckets.js';
 // Same whole-order-discount → lines rule as Munchies (equal share per item).
 import { splitOrderDiscount } from './munchiesReports.js';
+import { compareNatural } from '../lib/naturalSort.js';
 
 const ITEM_COLORS = ['#607D8B', '#7CB342', '#29B6F6', '#EC407A', '#FDD835', '#8E24AA', '#26A69A', '#FF7043'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -174,7 +175,7 @@ export function computeReports({
 
   const itemRows = [...itemAgg.values()]
     .map((r) => ({ ...r, cost: 0, grossProfit: r.net }))
-    .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+    .sort((a, b) => compareNatural(`${a.code} ${a.name}`, `${b.code} ${b.name}`));
 
   const topItems = [...itemAgg.values()]
     .sort((a, b) => b.net - a.net)
@@ -183,7 +184,7 @@ export function computeReports({
 
   const categoryRows = [...catAgg.values()]
     .map((r) => ({ ...r, cost: 0, grossProfit: r.net }))
-    .sort((a, b) => b.net - a.net);
+    .sort((a, b) => compareNatural(a.name, b.name));
 
   const itemPie = topItems.map((it) => ({ name: `${it.code} ${it.name}`, value: it.net, color: it.color }));
 

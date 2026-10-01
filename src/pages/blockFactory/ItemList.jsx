@@ -18,13 +18,13 @@ export default function ItemList() {
 
   const catByName = (name) => categories.find((c) => c.name.toLowerCase() === (name || '').toLowerCase());
 
-  const filtered = items
+  // `items` already comes from the store in menu order (category order, then
+  // item code / name), the same order the app's Sales screen uses; the header
+  // arrow just flips it.
+  const inOrder = items
     .filter((i) => (cat === 'all' ? true : i.categoryId === cat))
-    .filter((i) => `${i.code} ${i.name}`.toLowerCase().includes(q.toLowerCase()))
-    .sort((a, b) => {
-      const cmp = `${a.name}`.localeCompare(`${b.name}`, undefined, { numeric: true });
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
+    .filter((i) => `${i.code} ${i.name}`.toLowerCase().includes(q.toLowerCase()));
+  const filtered = sortDir === 'asc' ? inOrder : [...inOrder].reverse();
 
   const onExport = () => downloadCsv(`block-factory-items-${csvDate()}.csv`,
     [
