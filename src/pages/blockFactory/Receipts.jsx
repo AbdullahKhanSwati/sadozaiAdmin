@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Ban, ChevronDown, Pencil, Receipt, ReceiptText, RotateCcw, Search, Trash2, X } from 'lucide-react';
 import { ReportToolbar, Panel, usePagination, TablePagination, defaultRange, rangeLabel } from './bfUi.jsx';
 import { rs } from '../../data/munchiesData.js';
 import { useBlockFactory, useBfReports } from '../../store/BlockFactoryStore.jsx';
-import { useAuth } from '../../context/AuthContext.jsx';
-import { supabaseBlockFactory } from '../../lib/supabaseBlockFactory.js';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
 
 const TABS = [
@@ -36,21 +34,7 @@ function discountRowsFor(d) {
 }
 
 export default function Receipts() {
-  const { cancelReceipt, restoreReceipt, deleteReceipt, editReceipt, customers, employees } = useBlockFactory();
-  const { session } = useAuth();
-  // Permanent delete is for the Owner only; editing a bill is for admins/owner
-  // (only they can open this panel). Owner = login role 'owner' OR the Owner
-  // role on the Employees page — the database decides (bf_is_owner), and is
-  // asked again whenever the employee list changes.
-  const [dbOwner, setDbOwner] = useState(false);
-  useEffect(() => {
-    let active = true;
-    supabaseBlockFactory.rpc('bf_is_owner').then(({ data, error }) => {
-      if (active) setDbOwner(!error && data === true);
-    });
-    return () => { active = false; };
-  }, [session?.user?.id, employees]);
-  const isOwner = dbOwner || String(session?.role || '').toLowerCase() === 'owner';
+  const { cancelReceipt, restoreReceipt, deleteReceipt, editReceipt, customers } = useBlockFactory();
   // Month to date by default (by BILL date); the picker changes it and every
   // count, row and export below follows the selected period.
   const [range, setRange] = useState(defaultRange);
@@ -300,11 +284,11 @@ export default function Receipts() {
                         <Ban className="w-3.5 h-3.5" /> Cancel
                       </button>
                     )}
-                    {isOwner && (
+                    {(
                       <button
                         onClick={() => onDeleteForever(r)}
                         disabled={busy}
-                        title="Owner only — removes the bill completely"
+                        title="Removes the bill completely"
                         className="ml-3 inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 disabled:opacity-40"
                       >
                         <Trash2 className="w-3.5 h-3.5" /> Delete
@@ -407,11 +391,11 @@ export default function Receipts() {
               </div>
             </div>
             <div className="flex flex-wrap justify-end gap-3 px-5 py-4 border-t border-slate-100 sticky bottom-0 bg-white">
-              {isOwner && (
+              {(
                 <button
                   onClick={() => onDeleteForever(detailRow)}
                   disabled={busy}
-                  title="Owner only — removes the bill completely"
+                  title="Removes the bill completely"
                   className="mr-auto inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
                 >
                   <Trash2 className="w-4 h-4" /> Delete permanently
