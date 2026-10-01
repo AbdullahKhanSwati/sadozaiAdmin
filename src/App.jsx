@@ -1,4 +1,5 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { ShotsProvider } from './store/ShotsStore.jsx';
 import Login from './pages/Login.jsx';
@@ -75,9 +76,32 @@ import BfAccount from './pages/blockFactory/Account.jsx';
 import BfStock from './pages/blockFactory/Stock.jsx';
 import BfExpenses from './pages/blockFactory/Expenses.jsx';
 
+// Shown while the saved login is being checked, instead of a blank page.
+function Splash() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
+      <img src="/sadozai-icon.svg" alt="" className="w-14 h-14" />
+      <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-slate-500 animate-spin" />
+      <div className="text-xs font-bold uppercase tracking-widest text-slate-400">Sadozai Admin Console</div>
+    </div>
+  );
+}
+
+// Browser tab title: "Sadozai Admin Console", with the business in front.
+function useDocumentTitle() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const area = pathname.startsWith('/munchies') ? 'Munchies'
+      : pathname.startsWith('/block-factory') ? 'Block Factory'
+      : pathname.startsWith('/admin') ? 'Shots'
+      : '';
+    document.title = area ? `${area} · Sadozai Admin Console` : 'Sadozai Admin Console';
+  }, [pathname]);
+}
+
 function RequireAuth({ children }) {
   const { session, loading } = useAuth();
-  if (loading) return null; // wait for the async session refresh before deciding
+  if (loading) return <Splash />; // wait for the async session refresh before deciding
   if (!session) return <Navigate to="/login" replace />;
   return children;
 }
@@ -86,7 +110,7 @@ function RequireAuth({ children }) {
 // send them straight to their dashboard instead of showing the form again.
 function RedirectIfAuthed({ children }) {
   const { session, loading } = useAuth();
-  if (loading) return null; // wait for the async session refresh before deciding
+  if (loading) return <Splash />; // wait for the async session refresh before deciding
   if (session) return <Navigate to="/" replace />;
   return children;
 }
@@ -94,7 +118,7 @@ function RedirectIfAuthed({ children }) {
 // Land the user on the right admin after login based on their business.
 function HomeRedirect() {
   const { session, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <Splash />;
   if (!session) return <Navigate to="/login" replace />;
   if (session.businessId === 'munchies') return <Navigate to="/munchies" replace />;
   if (session.businessId === 'sadozai') return <Navigate to="/block-factory" replace />;
@@ -102,6 +126,7 @@ function HomeRedirect() {
 }
 
 function Shell() {
+  useDocumentTitle();
   return (
     <Routes>
       <Route path="/login" element={<RedirectIfAuthed><Login /></RedirectIfAuthed>} />

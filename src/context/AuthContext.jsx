@@ -34,10 +34,21 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const reqRef = useRef(0); // guards against out-of-order async refreshes
 
-  // Read a POS business's profile row (holds the access role).
+  // Read a POS business's profile row (holds the access role). Returns
+  // { profile, ok } — ok=false means the server could not be asked (offline /
+  // slow), which must never be mistaken for "not an admin".
   const fetchPosProfile = async (biz, userId) => {
-    const { data } = await biz.client.from('profiles').select('*').eq('user_id', userId).maybeSingle();
-    return data || null;
+    const cacheKey = `admin:profile:${biz.id}:${userId}`;
+    try {
+      const { data, error } = await biz.client.from('profiles').select('*').eq('user_id', userId).maybeSingle();
+      if (error) throw error;
+      try { if (data) localStorage.setItem(cacheKey, JSON.stringify(data)); } catch (e) { /* storage blocked */ }
+      return { profile: data || null, ok: true };
+    } catch (e) {
+      let cached = null;
+      try { cached = JSON.parse(localStorage.getItem(cacheKey) || 'null'); } catch (_) { cached = null; }
+      return { profile: cached, ok: false };
+    }
   };
 
   const posSession = (biz, user, profile) => ({
@@ -63,18 +74,22 @@ export function AuthProvider({ children }) {
   // Determine the active session: a POS business (admin only) wins, else Shots.
   const refresh = async () => {
     const token = ++reqRef.current;
-    setLoading(true);
+    // No setLoading(true) here: `loading` starts true for the first check, and
+    // later re-checks (token refresh, sign-in elsewhere) must not blank the page.
 
     for (const biz of POS_BUSINESSES) {
       const { data: m } = await biz.client.auth.getSession();
       if (!m.session?.user) continue;
-      const prof = await fetchPosProfile(biz, m.session.user.id);
+      const { profile: prof, ok } = await fetchPosProfile(biz, m.session.user.id);
       if (prof && isAdminRole(prof.role)) {
         if (token === reqRef.current) { setSession(posSession(biz, m.session.user, prof)); setLoading(false); }
         return;
       }
-      // Staff (or missing profile) may not use the admin panel.
-      await biz.client.auth.signOut();
+      // Couldn't reach the server and nothing cached: leave the login alone.
+      if (!ok) continue;
+      // Staff (or missing profile) may not use the admin panel. Sign out THIS
+      // browser only — the same login stays signed in on every app/tablet.
+      await biz.client.auth.signOut({ scope: 'local' });
     }
 
     const { data: s } = await supabase.auth.getSession();
@@ -82,7 +97,7 @@ export function AuthProvider({ children }) {
       const built = await buildShotsSession(s.session.user);
       // Only admins/owners may use the admin panel — refuse a restored staff session.
       if (!isAdminRole(built.role)) {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: 'local' });
         if (token === reqRef.current) { setSession(null); setLoading(false); }
         return;
       }
@@ -94,10 +109,19 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
-    refresh();
-    const posSubs = POS_BUSINESSES.map((b) => b.client.auth.onAuthStateChange(() => refresh()));
-    const { data: subS } = supabase.auth.onAuthStateChange(() => refresh());
+    // Never let the first load hang on a blank screen: if the session check
+    // takes too long (slow network), stop waiting — the check still finishes
+    // in the background and updates the page.
+    const safety = setTimeout(() => setLoading(false), 8000);
+    // auth callbacks must not call other auth methods synchronously — doing so
+    // can deadlock supabase-js on the very first load (blank page until a
+    // manual refresh). Run the refresh on the next tick instead.
+    const later = () => setTimeout(() => { refresh().finally(() => clearTimeout(safety)); }, 0);
+    later();
+    const posSubs = POS_BUSINESSES.map((b) => b.client.auth.onAuthStateChange(() => later()));
+    const { data: subS } = supabase.auth.onAuthStateChange(() => later());
     return () => {
+      clearTimeout(safety);
       posSubs.forEach(({ data }) => data.subscription.unsubscribe());
       subS.subscription.unsubscribe();
     };
@@ -115,9 +139,10 @@ export function AuthProvider({ children }) {
         if (biz) {
           const { data, error } = await biz.client.auth.signInWithPassword({ email, password });
           if (error) throw error;
-          const prof = await fetchPosProfile(biz, data.user.id);
+          const { profile: prof } = await fetchPosProfile(biz, data.user.id);
           if (!prof || !isAdminRole(prof.role)) {
-            await biz.client.auth.signOut();
+            // THIS browser only — never sign the staff member out of their app.
+            await biz.client.auth.signOut({ scope: 'local' });
             throw new Error(`This is a staff account. Staff can only use the ${biz.appName} app, not the admin panel.`);
           }
           setSession(posSession(biz, data.user, prof));
@@ -129,14 +154,16 @@ export function AuthProvider({ children }) {
         // mobile app but must be refused here.
         const { data: prof } = await supabase.from('profiles').select('role').eq('user_id', data.user.id).maybeSingle();
         if (!prof || !isAdminRole(prof.role)) {
-          await supabase.auth.signOut();
+          await supabase.auth.signOut({ scope: 'local' });
           throw new Error('This is a staff account. Staff can only use the Shots app, not the admin panel.');
         }
       },
       logout: async () => {
         const biz = posBusiness(session?.businessId);
-        if (biz) await biz.client.auth.signOut();
-        else await supabase.auth.signOut();
+        // Sign out of THIS browser only; the same login stays signed in on
+        // the apps and on any other computer.
+        if (biz) await biz.client.auth.signOut({ scope: 'local' });
+        else await supabase.auth.signOut({ scope: 'local' });
         setSession(null);
       },
     }),
