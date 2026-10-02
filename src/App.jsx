@@ -76,6 +76,40 @@ import BfAccount from './pages/blockFactory/Account.jsx';
 import BfStock from './pages/blockFactory/Stock.jsx';
 import BfExpenses from './pages/blockFactory/Expenses.jsx';
 
+// Farm admin — Block Factory's admin (sales on account) plus Livestock + Production.
+import { FarmProvider } from './store/FarmStore.jsx';
+import FarmLayout from './components/FarmLayout.jsx';
+import FarmSalesSummary from './pages/farm/SalesSummary.jsx';
+import FarmSalesByItem from './pages/farm/SalesByItem.jsx';
+import FarmSalesByCategory from './pages/farm/SalesByCategory.jsx';
+import FarmSalesByEmployee from './pages/farm/SalesByEmployee.jsx';
+import FarmReceipts from './pages/farm/Receipts.jsx';
+import FarmSalesByModifier from './pages/farm/SalesByModifier.jsx';
+import FarmDiscounts from './pages/farm/Discounts.jsx';
+import FarmSettings from './pages/farm/Settings.jsx';
+import FarmComingSoon from './pages/farm/ComingSoon.jsx';
+import FarmItemList from './pages/farm/ItemList.jsx';
+import FarmItemForm from './pages/farm/ItemForm.jsx';
+import FarmCategories from './pages/farm/Categories.jsx';
+import FarmCategoryForm from './pages/farm/CategoryForm.jsx';
+import FarmModifiers from './pages/farm/Modifiers.jsx';
+import FarmModifierForm from './pages/farm/ModifierForm.jsx';
+import FarmItemDiscounts from './pages/farm/ItemDiscounts.jsx';
+import FarmDiscountForm from './pages/farm/DiscountForm.jsx';
+import FarmEmployeeList from './pages/farm/EmployeeList.jsx';
+import FarmEmployeeForm from './pages/farm/EmployeeForm.jsx';
+import FarmAccessRights from './pages/farm/AccessRights.jsx';
+import FarmRoleForm from './pages/farm/RoleForm.jsx';
+import FarmCustomerList from './pages/farm/CustomerList.jsx';
+import FarmCustomerForm from './pages/farm/CustomerForm.jsx';
+import FarmCustomerStatement from './pages/farm/CustomerStatement.jsx';
+import FarmReceivables from './pages/farm/Receivables.jsx';
+import FarmAccount from './pages/farm/Account.jsx';
+import FarmStock from './pages/farm/Stock.jsx';
+import FarmExpenses from './pages/farm/Expenses.jsx';
+import FarmLivestock from './pages/farm/Livestock.jsx';
+import FarmProduction from './pages/farm/Production.jsx';
+
 // Shown while the saved login is being checked, instead of a blank page.
 function Splash() {
   return (
@@ -93,6 +127,7 @@ function useDocumentTitle() {
   useEffect(() => {
     const area = pathname.startsWith('/munchies') ? 'Munchies'
       : pathname.startsWith('/block-factory') ? 'Block Factory'
+      : pathname.startsWith('/farm') ? 'Farm'
       : pathname.startsWith('/admin') ? 'Shots'
       : '';
     document.title = area ? `${area} · Sadozai Admin Console` : 'Sadozai Admin Console';
@@ -122,6 +157,7 @@ function HomeRedirect() {
   if (!session) return <Navigate to="/login" replace />;
   if (session.businessId === 'munchies') return <Navigate to="/munchies" replace />;
   if (session.businessId === 'sadozai') return <Navigate to="/block-factory" replace />;
+  if (session.businessId === 'farm') return <Navigate to="/farm" replace />;
   return <Navigate to="/admin/dashboard" replace />;
 }
 
@@ -273,6 +309,68 @@ function Shell() {
         <Route path="expenses" element={<BfExpenses />} />
         <Route path="stock" element={<BfStock />} />
         <Route path="settings" element={<BfSettings />} />
+      </Route>
+
+      <Route
+        path="/farm"
+        element={
+          <RequireAuth>
+            <FarmProvider>
+              <FarmLayout />
+            </FarmProvider>
+          </RequireAuth>
+        }
+      >
+        <Route index element={<Navigate to="reports/sales-summary" replace />} />
+        <Route path="reports" element={<Navigate to="sales-summary" replace />} />
+        <Route path="reports/sales-summary" element={<FarmSalesSummary />} />
+        <Route path="reports/summary" element={<FarmSalesSummary />} />
+        <Route path="reports/sales-by-item" element={<FarmSalesByItem />} />
+        <Route path="reports/sales-by-category" element={<FarmSalesByCategory />} />
+        <Route path="reports/sales-by-employee" element={<FarmSalesByEmployee />} />
+        <Route path="reports/receipts" element={<FarmReceipts />} />
+        <Route path="reports/sales-by-modifier" element={<FarmSalesByModifier />} />
+        <Route path="reports/discounts" element={<FarmDiscounts />} />
+        <Route path="reports/receivables" element={<FarmReceivables />} />
+        <Route path="reports/taxes" element={<FarmComingSoon title="Taxes" />} />
+
+        {/* Items */}
+        <Route path="items" element={<Navigate to="list" replace />} />
+        <Route path="items/list" element={<FarmItemList />} />
+        <Route path="items/new" element={<FarmItemForm />} />
+        <Route path="items/categories" element={<FarmCategories />} />
+        <Route path="items/categories/new" element={<FarmCategoryForm />} />
+        <Route path="items/categories/:id" element={<FarmCategoryForm />} />
+        <Route path="items/modifiers" element={<FarmModifiers />} />
+        <Route path="items/modifiers/new" element={<FarmModifierForm />} />
+        <Route path="items/modifiers/:id" element={<FarmModifierForm />} />
+        <Route path="items/discounts" element={<FarmItemDiscounts />} />
+        <Route path="items/discounts/new" element={<FarmDiscountForm />} />
+        <Route path="items/discounts/:id" element={<FarmDiscountForm />} />
+        <Route path="items/:id" element={<FarmItemForm />} />
+
+        {/* Employees */}
+        <Route path="employees" element={<Navigate to="list" replace />} />
+        <Route path="employees/list" element={<FarmEmployeeList />} />
+        <Route path="employees/new" element={<FarmEmployeeForm />} />
+        <Route path="employees/access" element={<FarmAccessRights />} />
+        <Route path="employees/access/new" element={<FarmRoleForm />} />
+        <Route path="employees/access/:id" element={<FarmRoleForm />} />
+        <Route path="employees/:id" element={<FarmEmployeeForm />} />
+
+        <Route path="account" element={<FarmAccount />} />
+
+        {/* Customers — statement carries the receivables ledger */}
+        <Route path="customers" element={<FarmCustomerList />} />
+        <Route path="customers/new" element={<FarmCustomerForm />} />
+        <Route path="customers/:id/statement" element={<FarmCustomerStatement />} />
+        <Route path="customers/:id" element={<FarmCustomerForm />} />
+
+        <Route path="livestock" element={<FarmLivestock />} />
+        <Route path="production" element={<FarmProduction />} />
+        <Route path="expenses" element={<FarmExpenses />} />
+        <Route path="stock" element={<FarmStock />} />
+        <Route path="settings" element={<FarmSettings />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/login" replace />} />

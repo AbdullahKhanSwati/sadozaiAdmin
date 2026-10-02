@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { supabase } from '../lib/supabase.js';
 import { supabaseMunchies } from '../lib/supabaseMunchies.js';
 import { supabaseBlockFactory } from '../lib/supabaseBlockFactory.js';
+import { supabaseFarm } from '../lib/supabaseFarm.js';
 import { businesses as localBusinesses } from '../data/businesses.js';
 
 const AuthContext = createContext(null);
@@ -14,6 +15,7 @@ const isAdminRole = (role) => ['admin', 'owner'].includes((role || '').toLowerCa
 const POS_BUSINESSES = [
   { id: 'munchies', client: supabaseMunchies, appName: 'Munchies' },
   { id: 'sadozai', client: supabaseBlockFactory, appName: 'Block Factory' },
+  { id: 'farm', client: supabaseFarm, appName: 'Farm' },
 ];
 const posBusiness = (id) => POS_BUSINESSES.find((b) => b.id === id) || null;
 

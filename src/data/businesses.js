@@ -29,6 +29,22 @@ export const businesses = [
     summary: 'Reports, items, customers, receivables',
   },
   {
+    id: 'farm',
+    name: 'Farm',
+    type: 'Livestock Farm',
+    tag: 'Agriculture',
+    emoji: '🐄',
+    logo: '/farmLogo.png',
+    accent: '#5BA82F',
+    accentDark: '#3C7320',
+    available: true,
+    // Real Supabase auth (Farm project). Only admin accounts may sign in here;
+    // staff are refused and can use the Farm app only.
+    defaultEmail: '',
+    defaultPassword: '',
+    summary: 'Livestock, production, sales, customers',
+  },
+  {
     id: 'munchies',
     name: 'Munchies',
     type: 'Food Restaurant',
