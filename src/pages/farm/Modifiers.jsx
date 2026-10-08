@@ -25,34 +25,36 @@ export default function Modifiers() {
           )}
         </div>
 
-        <table className="w-full text-sm border-t border-slate-100">
-          <thead>
-            <tr className="text-ink-500">
-              <th className="px-5 py-3 w-10"><CheckBox checked={allChecked} onChange={toggleAll} /></th>
-              <th className="text-left font-medium px-2 py-3">Modifier</th>
-              <th className="w-12" />
-            </tr>
-          </thead>
-          <tbody>
-            {modifiers.map((m) => (
-              <tr key={m.id} onClick={() => navigate(`/farm/items/modifiers/${m.id}`)} className="border-t border-slate-100 hover:bg-slate-50/60 cursor-pointer">
-                <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}><CheckBox checked={selected.includes(m.id)} onChange={() => toggleOne(m.id)} /></td>
-                <td className="px-2 py-4">
-                  <div className="flex items-center gap-4">
-                    <span className="w-11 h-11 rounded-full bg-bf-500 text-white flex items-center justify-center shrink-0">
-                      <FileCheck2 className="w-5 h-5" />
-                    </span>
-                    <div>
-                      <div className="font-bold text-ink-800">{m.name}</div>
-                      <div className="text-ink-400 text-xs mt-0.5 truncate max-w-[520px]">{m.options.map((o) => o.name).join(', ')}</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-5 py-4 text-slate-300"><GripVertical className="w-5 h-5" /></td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-t border-slate-100 min-w-[420px]">
+            <thead>
+              <tr className="text-ink-500">
+                <th className="px-5 py-3 w-10"><CheckBox checked={allChecked} onChange={toggleAll} /></th>
+                <th className="text-left font-medium px-2 py-3">Modifier</th>
+                <th className="w-12" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {modifiers.map((m) => (
+                <tr key={m.id} onClick={() => navigate(`/farm/items/modifiers/${m.id}`)} className="border-t border-slate-100 hover:bg-slate-50/60 cursor-pointer">
+                  <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}><CheckBox checked={selected.includes(m.id)} onChange={() => toggleOne(m.id)} /></td>
+                  <td className="px-2 py-4">
+                    <div className="flex items-center gap-4">
+                      <span className="w-11 h-11 rounded-full bg-bf-500 text-white flex items-center justify-center shrink-0">
+                        <FileCheck2 className="w-5 h-5" />
+                      </span>
+                      <div>
+                        <div className="font-bold text-ink-800">{m.name}</div>
+                        <div className="text-ink-400 text-xs mt-0.5 truncate max-w-[520px]">{m.options.map((o) => o.name).join(', ')}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-5 py-4 text-slate-300"><GripVertical className="w-5 h-5" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
     </div>
   );

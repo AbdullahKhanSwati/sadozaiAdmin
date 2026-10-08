@@ -9,6 +9,7 @@ import { downloadCsv, csvDate } from '../../lib/csv.js';
 import BookingDialog from '../../components/dialogs/BookingDialog.jsx';
 import {
   bookingStatus, bookingPricing, bookingMinutes, minutesLabel, pricingModeLabel, pricingQuantity, pricingRate, playerCount,
+  bookingSubtotal, bookingDiscount, discountNote,
 } from '../../data/bookingInfo.js';
 
 // `liveStatus` is worked out from the booking's date + time (see bookingInfo.js):
@@ -75,6 +76,11 @@ export default function Bookings() {
       { label: 'Duration', value: (b) => minutesLabel(bookingMinutes(b)) },
       { label: 'Rate', value: (b) => pricingRate(b) },
       { label: 'Charged for', value: (b) => pricingQuantity(b) },
+      // Discount columns, matching the Dashboard report: what the booking came
+      // to before the discount, what was taken off, and why.
+      { label: 'Subtotal (Rs.)', value: (b) => bookingSubtotal(b) },
+      { label: 'Discount (Rs.)', value: (b) => bookingDiscount(b) },
+      { label: 'Discount Note', value: (b) => discountNote(b.discount) },
       { label: 'Amount (Rs.)', value: 'amount' },
       { label: 'Status', value: 'liveStatus' },
     ], list);
@@ -160,7 +166,7 @@ function ListView({ list, onPick }) {
   return (
     <div className="card overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="min-w-full">
+        <table className="w-full min-w-[1035px]">
           <thead>
             <tr>
               <th className="table-th">Date · Time</th>

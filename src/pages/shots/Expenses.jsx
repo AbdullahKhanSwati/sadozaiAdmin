@@ -106,7 +106,7 @@ This cannot be undone.`)) return;
             <EmptyState icon={Receipt} title="No matching expenses" message="Try different filters." />
           ) : (
             <div className="overflow-x-auto -mx-2">
-              <table className="min-w-full">
+              <table className="w-full min-w-[575px]">
                 <thead>
                   <tr>
                     <th className="table-th">Date</th>

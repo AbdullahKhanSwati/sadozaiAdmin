@@ -117,7 +117,7 @@ export default function MemberDetail() {
               <EmptyState icon={Calendar} title="No bookings yet" message="This member hasn't booked any tables yet." />
             ) : (
               <div className="overflow-x-auto -mx-2">
-                <table className="min-w-full">
+                <table className="w-full min-w-[690px]">
                   <thead>
                     <tr>
                       <th className="table-th">Date</th>

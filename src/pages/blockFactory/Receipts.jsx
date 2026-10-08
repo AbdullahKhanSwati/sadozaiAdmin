@@ -11,6 +11,16 @@ const TABS = [
   { key: 'cancelled', label: 'Cancelled', icon: Ban, tone: 'bg-rose-500' },
 ];
 
+// Today as yyyy-mm-dd in local time (the latest date a bill may carry).
+const todayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+// Report scopes for the search: every bill / none (keeps the unused pass cheap).
+const ALL_DATES = { key: 'all' };
+const NO_DATES = { key: 'none', start: '9999-12-31', end: '9999-12-31' };
+
 const exportDate = (iso) => {
   if (!iso) return '';
   const d = new Date(`${iso}T00:00:00`);
@@ -39,10 +49,16 @@ export default function Receipts() {
   // count, row and export below follows the selected period.
   const [range, setRange] = useState(defaultRange);
   const reports = useBfReports(range);
-  const { receiptStats, receiptRows, receiptLineRows, receiptById } = reports;
   const [editFor, setEditFor] = useState(null); // receipt detail being edited
   const [tab, setTab] = useState('all');
   const [q, setQ] = useState('');
+  // A typed search looks through EVERY bill, not just the selected period —
+  // an old bill ref must be findable without first changing the dates. The
+  // tab counts above the table stay on the selected period.
+  const needle = q.trim().toLowerCase();
+  const searchReports = useBfReports(needle ? ALL_DATES : NO_DATES);
+  const { receiptStats } = reports;
+  const { receiptRows, receiptLineRows, receiptById } = needle ? searchReports : reports;
   const [openId, setOpenId] = useState(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [cancelFor, setCancelFor] = useState(null); // receipt pending cancellation
@@ -54,10 +70,15 @@ export default function Receipts() {
     : tab === 'cancelled'
       ? receiptRows.filter((r) => r.cancelled)
       : receiptRows;
-  const needle = q.toLowerCase();
-  const rows = byTab.filter(
-    (r) => r.no.toLowerCase().includes(needle) || r.date.toLowerCase().includes(needle)
-  );
+  // Search every column shown in the table (plus the raw date and amounts), so
+  // a bill can be found by its ref, receipt no., customer, employee, amount…
+  const rows = needle
+    ? byTab.filter((r) => [
+        r.billRef, r.no, r.date, r.isoDate, exportDate(r.isoDate), r.employee, r.customer,
+        r.type, r.status, r.cancelReason, r.dining,
+        r.total, r.paid, r.balance, rs(r.total), rs(r.paid), rs(r.balance),
+      ].some((v) => v != null && String(v).toLowerCase().includes(needle)))
+    : byTab;
   const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(rows, 10);
 
   // ---- Exports -------------------------------------------------------------
@@ -139,7 +160,7 @@ export default function Receipts() {
 
   const onDeleteForever = async (r) => {
     if (!r) return;
-    if (!window.confirm(`PERMANENTLY delete bill ${r.billRef || r.no} (${rs(r.total)})?\n\nIt is removed from every report and customer statement and cannot be recovered. To keep a record, use "Cancel order" instead.`)) return;
+    if (!window.confirm(`PERMANENTLY delete bill ${r.billRef || r.no} (${rs(r.total)})?\n\nThe bill, its items and every payment recorded against it are removed from all reports and the customer's history. This cannot be undone. To keep a record, use "Cancel order" instead.`)) return;
     setBusy(true);
     try {
       await deleteReceipt(r.id);
@@ -221,14 +242,19 @@ export default function Receipts() {
             <Search className="w-4 h-4 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search"
-              className="pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-bf-500/30 focus:border-bf-400 w-52"
+              onChange={(e) => { setQ(e.target.value); setPage(1); }}
+              placeholder="Search bill, customer, amount…"
+              className="pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-bf-500/30 focus:border-bf-400 w-64"
             />
+            {needle && (
+              <div className="absolute right-0 top-full mt-1 text-[11px] text-ink-400 whitespace-nowrap">
+                Searching all dates · {rows.length} found
+              </div>
+            )}
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[1040px]">
             <thead>
               <tr className="text-ink-500">
                 <th className="text-left font-medium px-5 py-3">Bill ref.</th>
@@ -480,13 +506,15 @@ export default function Receipts() {
 }
 
 // ---- Edit an old bill ----------------------------------------------------------
-// Only the quantity and price per item of each line, and the customer, can be
-// changed — anything bigger means cancelling the bill and ringing it up again.
+// Only the bill date, the quantity and price per item of each line, and the
+// customer can be changed — anything bigger means cancelling the bill and
+// ringing it up again.
 // The preview uses the same rules as the server (bf_edit_receipt):
 //   line gross = qty × (price + modifiers); a line discount keeps its percentage;
 //   the whole-bill discount keeps its percentage of the bill after line discounts.
 function EditBillDialog({ bill, customers, onClose, onSave }) {
   const [customerId, setCustomerId] = useState(bill.customerId || '');
+  const [saleDate, setSaleDate] = useState(bill.isoDate || '');
   const [custQuery, setCustQuery] = useState('');
   const [lines, setLines] = useState(() => bill.lines.map((l) => ({ ...l, qtyText: String(l.qty), unitText: String(l.unit) })));
   const [saving, setSaving] = useState(false);
@@ -522,6 +550,8 @@ function EditBillDialog({ bill, customers, onClose, onSave }) {
 
   const save = async () => {
     setError('');
+    if (!saleDate) return setError('Pick the bill date.');
+    if (saleDate > todayIso()) return setError('The bill date cannot be in the future.');
     for (const l of lines) {
       if (!(n(l.qtyText) > 0)) return setError(`Quantity for "${l.name}" must be more than 0.`);
       if (l.unitText === '' || n(l.unitText) < 0) return setError(`Enter a price for "${l.name}".`);
@@ -530,6 +560,7 @@ function EditBillDialog({ bill, customers, onClose, onSave }) {
     try {
       await onSave({
         customerId: customerId || null,
+        saleDate,
         lines: lines.map((l) => ({ id: l.id, qty: n(l.qtyText), unit: n(l.unitText) })),
       });
     } catch (e) {
@@ -544,12 +575,26 @@ function EditBillDialog({ bill, customers, onClose, onSave }) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 sticky top-0 bg-white">
           <div>
             <div className="text-lg font-bold text-ink-800">Edit bill {bill.billRef || bill.no}</div>
-            <div className="text-xs text-ink-400">{bill.date} · only quantity, price per item and customer can change</div>
+            <div className="text-xs text-ink-400">{bill.date} · only the date, quantity, price per item and customer can change</div>
           </div>
           <button onClick={onClose} className="text-ink-400 hover:text-ink-700"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="p-5 space-y-5">
+          <div>
+            <label className="block text-xs font-semibold text-ink-500 mb-1">Bill date</label>
+            <input
+              type="date"
+              value={saleDate}
+              max={todayIso()}
+              onChange={(e) => setSaleDate(e.target.value)}
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
+            />
+            {saleDate !== (bill.isoDate || '') && (
+              <p className="text-xs text-amber-700 mt-1">The bill moves to this date in every report. The cash taken at the till moves with it; later payments keep their own dates.</p>
+            )}
+          </div>
+
           <div>
             <label className="block text-xs font-semibold text-ink-500 mb-1">Customer</label>
             <input
@@ -574,7 +619,7 @@ function EditBillDialog({ bill, customers, onClose, onSave }) {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[460px]">
               <thead>
                 <tr className="text-ink-500 text-xs">
                   <th className="text-left font-medium py-2">Item</th>

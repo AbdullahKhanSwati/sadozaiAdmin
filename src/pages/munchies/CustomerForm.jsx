@@ -79,26 +79,28 @@ export default function CustomerForm() {
           {purchases.length === 0 ? (
             <div className="px-6 py-8 text-sm text-ink-400 text-center">No purchases yet.</div>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-ink-500">
-                  <th className="text-left font-medium px-6 py-3">Receipt</th>
-                  <th className="text-left font-medium px-6 py-3">Date</th>
-                  <th className="text-left font-medium px-6 py-3">Type</th>
-                  <th className="text-right font-medium px-6 py-3">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {purchases.map((p) => (
-                  <tr key={p.no} className="border-t border-slate-100">
-                    <td className="px-6 py-3 text-ink-700">{p.no}</td>
-                    <td className="px-6 py-3 text-ink-600">{p.date}</td>
-                    <td className="px-6 py-3 text-ink-600">{p.type}</td>
-                    <td className="px-6 py-3 text-right font-semibold text-ink-800">{rs(p.total)}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[460px]">
+                <thead>
+                  <tr className="text-ink-500">
+                    <th className="text-left font-medium px-6 py-3">Receipt</th>
+                    <th className="text-left font-medium px-6 py-3">Date</th>
+                    <th className="text-left font-medium px-6 py-3">Type</th>
+                    <th className="text-right font-medium px-6 py-3">Total</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {purchases.map((p) => (
+                    <tr key={p.no} className="border-t border-slate-100">
+                      <td className="px-6 py-3 text-ink-700">{p.no}</td>
+                      <td className="px-6 py-3 text-ink-600">{p.date}</td>
+                      <td className="px-6 py-3 text-ink-600">{p.type}</td>
+                      <td className="px-6 py-3 text-right font-semibold text-ink-800">{rs(p.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </Card>
       )}

@@ -92,80 +92,82 @@ export default function Modifiers() {
           </span>
         </div>
 
-        <table className="w-full text-sm border-t border-slate-100">
-          <thead>
-            <tr className="text-ink-500">
-              <th className="px-5 py-3 w-10"><CheckBox checked={allChecked} onChange={toggleAll} /></th>
-              <th className="text-left font-medium px-2 py-3">Modifier</th>
-              <th className="w-24 text-right font-medium px-3 py-3">Order</th>
-              <th className="w-12" />
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((m, i) => {
-              const dragging = dragId === m.id;
-              const over = overId === m.id && dragId && dragId !== m.id;
-              return (
-                <tr
-                  key={m.id}
-                  draggable
-                  onDragStart={(e) => onDragStart(e, m.id)}
-                  onDragOver={(e) => onDragOver(e, m.id)}
-                  onDrop={(e) => onDrop(e, m.id)}
-                  onDragEnd={onDragEnd}
-                  onClick={() => navigate(`/munchies/items/modifiers/${m.id}`)}
-                  className={[
-                    'border-t border-slate-100 hover:bg-slate-50/60 cursor-pointer transition-colors',
-                    dragging ? 'opacity-40' : '',
-                    over ? 'bg-mun-50 border-t-2 border-t-mun-500' : '',
-                  ].join(' ')}
-                >
-                  <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}><CheckBox checked={selected.includes(m.id)} onChange={() => toggleOne(m.id)} /></td>
-                  <td className="px-2 py-4">
-                    <div className="flex items-center gap-4">
-                      <span className="w-11 h-11 rounded-full bg-mun-500 text-white flex items-center justify-center shrink-0">
-                        <FileCheck2 className="w-5 h-5" />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="font-bold text-ink-800">{m.name}</div>
-                        <div className="text-ink-400 text-xs mt-0.5 truncate max-w-[520px]">{(m.options || []).map((o) => o.name).join(', ')}</div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-t border-slate-100 min-w-[460px]">
+            <thead>
+              <tr className="text-ink-500">
+                <th className="px-5 py-3 w-10"><CheckBox checked={allChecked} onChange={toggleAll} /></th>
+                <th className="text-left font-medium px-2 py-3">Modifier</th>
+                <th className="w-24 text-right font-medium px-3 py-3">Order</th>
+                <th className="w-12" />
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((m, i) => {
+                const dragging = dragId === m.id;
+                const over = overId === m.id && dragId && dragId !== m.id;
+                return (
+                  <tr
+                    key={m.id}
+                    draggable
+                    onDragStart={(e) => onDragStart(e, m.id)}
+                    onDragOver={(e) => onDragOver(e, m.id)}
+                    onDrop={(e) => onDrop(e, m.id)}
+                    onDragEnd={onDragEnd}
+                    onClick={() => navigate(`/munchies/items/modifiers/${m.id}`)}
+                    className={[
+                      'border-t border-slate-100 hover:bg-slate-50/60 cursor-pointer transition-colors',
+                      dragging ? 'opacity-40' : '',
+                      over ? 'bg-mun-50 border-t-2 border-t-mun-500' : '',
+                    ].join(' ')}
+                  >
+                    <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}><CheckBox checked={selected.includes(m.id)} onChange={() => toggleOne(m.id)} /></td>
+                    <td className="px-2 py-4">
+                      <div className="flex items-center gap-4">
+                        <span className="w-11 h-11 rounded-full bg-mun-500 text-white flex items-center justify-center shrink-0">
+                          <FileCheck2 className="w-5 h-5" />
+                        </span>
+                        <div className="min-w-0">
+                          <div className="font-bold text-ink-800">{m.name}</div>
+                          <div className="text-ink-400 text-xs mt-0.5 truncate max-w-[520px]">{(m.options || []).map((o) => o.name).join(', ')}</div>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-3 py-4 text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="inline-flex items-center gap-1 text-ink-400">
-                      <span className="text-xs font-semibold text-ink-500 mr-1">{i + 1}</span>
-                      <button
-                        type="button"
-                        onClick={() => moveBy(m.id, -1)}
-                        disabled={i === 0 || saving}
-                        className="p-1 rounded hover:bg-slate-100 hover:text-mun-600 disabled:opacity-25 disabled:hover:bg-transparent"
-                        title="Move up"
-                      >
-                        <ChevronUp className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveBy(m.id, 1)}
-                        disabled={i === list.length - 1 || saving}
-                        className="p-1 rounded hover:bg-slate-100 hover:text-mun-600 disabled:opacity-25 disabled:hover:bg-transparent"
-                        title="Move down"
-                      >
-                        <ChevronDown className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4 text-slate-300 cursor-grab active:cursor-grabbing" onClick={(e) => e.stopPropagation()} title="Drag to reorder">
-                    <GripVertical className="w-5 h-5" />
-                  </td>
-                </tr>
-              );
-            })}
-            {list.length === 0 && (
-              <tr><td colSpan={4} className="px-5 py-10 text-center text-ink-400">No modifiers yet.</td></tr>
-            )}
-          </tbody>
-        </table>
+                    </td>
+                    <td className="px-3 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                      <div className="inline-flex items-center gap-1 text-ink-400">
+                        <span className="text-xs font-semibold text-ink-500 mr-1">{i + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => moveBy(m.id, -1)}
+                          disabled={i === 0 || saving}
+                          className="p-1 rounded hover:bg-slate-100 hover:text-mun-600 disabled:opacity-25 disabled:hover:bg-transparent"
+                          title="Move up"
+                        >
+                          <ChevronUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveBy(m.id, 1)}
+                          disabled={i === list.length - 1 || saving}
+                          className="p-1 rounded hover:bg-slate-100 hover:text-mun-600 disabled:opacity-25 disabled:hover:bg-transparent"
+                          title="Move down"
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-slate-300 cursor-grab active:cursor-grabbing" onClick={(e) => e.stopPropagation()} title="Drag to reorder">
+                      <GripVertical className="w-5 h-5" />
+                    </td>
+                  </tr>
+                );
+              })}
+              {list.length === 0 && (
+                <tr><td colSpan={4} className="px-5 py-10 text-center text-ink-400">No modifiers yet.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </Card>
     </div>
   );

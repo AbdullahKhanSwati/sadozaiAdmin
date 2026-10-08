@@ -27,7 +27,7 @@ export default function Discounts() {
           <span className="hidden sm:inline text-xs font-semibold text-ink-400 whitespace-nowrap">{rangeLabel(range)}</span>
         </ExportBar>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[420px]">
             <thead>
               <tr className="text-ink-500">
                 <th className="text-left font-medium px-5 py-3">Name</th>

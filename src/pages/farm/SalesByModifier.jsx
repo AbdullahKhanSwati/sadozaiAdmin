@@ -15,7 +15,7 @@ export default function SalesByModifier() {
       <Panel>
         <ExportBar />
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[420px]">
             <thead>
               <tr className="text-ink-500">
                 <th className="text-left font-medium px-5 py-3">Modifier</th>

@@ -15,7 +15,10 @@ import {
 import { DateRange, PageHeader, StatCard, StatusPill, TierBadge } from '../../components/ui.jsx';
 import { useShots } from '../../store/ShotsStore.jsx';
 import { downloadCsvMatrix, csvDate } from '../../lib/csv.js';
-import { bookingStatus, bookingMinutes, pricingModeLabel, pricingQuantity, pricingRate, playerCount } from '../../data/bookingInfo.js';
+import {
+  bookingStatus, bookingMinutes, pricingModeLabel, pricingQuantity, pricingRate, playerCount,
+  bookingSubtotal, bookingDiscount, discountNote,
+} from '../../data/bookingInfo.js';
 
 const PIE_COLORS = ['#E53E3E', '#F4B860', '#3B82F6', '#10B981', '#A855F7', '#FF6B6B', '#64748B'];
 
@@ -90,11 +93,6 @@ export default function Dashboard() {
     } = period;
     const rangeText = range ? `${range.start} to ${range.end}` : 'All time';
     const tableNo = (n) => (n ? `Table ${n}` : 'General');
-    const discountNote = (d) => {
-      if (!d) return '';
-      const base = d.type === 'percent' ? `${d.value}% off` : `Rs. ${d.value} off`;
-      return d.reason ? `${base} (${d.reason})` : base;
-    };
 
     const M = [];
     const blank = () => M.push([]);
@@ -141,7 +139,7 @@ export default function Dashboard() {
         b.isMember ? (b.memberId || '') : '', b.isMember ? (b.memberType || '') : '',
         playerCount(b), bookingMinutes(b),
         pricingModeLabel(b), pricingQuantity(b), pricingRate(b),
-        b.subtotal ?? b.amount ?? 0, b.discount?.amount || 0, discountNote(b.discount),
+        bookingSubtotal(b), bookingDiscount(b), discountNote(b.discount),
         b.amount || 0, bookingStatus(b),
       ]);
     });
@@ -296,7 +294,7 @@ export default function Dashboard() {
             </Link>
           </div>
           <div className="overflow-x-auto -mx-2">
-            <table className="min-w-full">
+            <table className="w-full min-w-[690px]">
               <thead>
                 <tr>
                   <th className="table-th">Time</th>

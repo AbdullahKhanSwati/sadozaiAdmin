@@ -31,31 +31,33 @@ export default function ItemDiscounts() {
           )}
         </div>
 
-        <table className="w-full text-sm border-t border-slate-100">
-          <thead>
-            <tr className="text-ink-500">
-              <th className="px-5 py-3 w-10"><CheckBox checked={allChecked} onChange={toggleAll} /></th>
-              <th className="text-left font-medium px-2 py-3">Name</th>
-              <th className="text-right font-medium px-5 py-3">Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {discounts.map((d) => (
-              <tr key={d.id} onClick={() => navigate(`/block-factory/items/discounts/${d.id}`)} className="border-t border-slate-100 hover:bg-slate-50/60 cursor-pointer">
-                <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}><CheckBox checked={selected.includes(d.id)} onChange={() => toggleOne(d.id)} /></td>
-                <td className="px-2 py-4">
-                  <div className="flex items-center gap-4">
-                    <span className="w-11 h-11 rounded-full bg-bf-500 text-white flex items-center justify-center shrink-0">
-                      <Percent className="w-5 h-5" />
-                    </span>
-                    <span className="text-ink-800">{d.name}</span>
-                  </div>
-                </td>
-                <td className="px-5 py-4 text-right font-semibold text-ink-800">{discountValueLabel(d)}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-t border-slate-100 min-w-[420px]">
+            <thead>
+              <tr className="text-ink-500">
+                <th className="px-5 py-3 w-10"><CheckBox checked={allChecked} onChange={toggleAll} /></th>
+                <th className="text-left font-medium px-2 py-3">Name</th>
+                <th className="text-right font-medium px-5 py-3">Value</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {discounts.map((d) => (
+                <tr key={d.id} onClick={() => navigate(`/block-factory/items/discounts/${d.id}`)} className="border-t border-slate-100 hover:bg-slate-50/60 cursor-pointer">
+                  <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}><CheckBox checked={selected.includes(d.id)} onChange={() => toggleOne(d.id)} /></td>
+                  <td className="px-2 py-4">
+                    <div className="flex items-center gap-4">
+                      <span className="w-11 h-11 rounded-full bg-bf-500 text-white flex items-center justify-center shrink-0">
+                        <Percent className="w-5 h-5" />
+                      </span>
+                      <span className="text-ink-800">{d.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-4 text-right font-semibold text-ink-800">{discountValueLabel(d)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
     </div>
   );

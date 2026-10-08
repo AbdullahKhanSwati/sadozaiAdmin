@@ -182,7 +182,7 @@ export default function Finance() {
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full">
+          <table className="w-full min-w-[575px]">
             <thead>
               <tr>
                 <th className="table-th">Date · Time</th>

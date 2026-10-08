@@ -112,3 +112,25 @@ export function nextBookingFor(bookings = [], tableId, now = new Date()) {
     .filter((b) => b.tableId === tableId && b.date === today && bookingStatus(b, now) === 'Upcoming')
     .sort((a, b) => (a.start || '').localeCompare(b.start || ''))[0] || null;
 }
+
+// ---- Discounts ------------------------------------------------------------
+// A booking's discount is stored as { type: 'percent' | 'fixed', value, amount,
+// reason }. These three helpers are shared by every export (Dashboard report,
+// Bookings CSV) so the discount columns can never drift apart.
+
+// What the booking came to BEFORE the discount.
+export function bookingSubtotal(b) {
+  return b?.subtotal ?? b?.amount ?? 0;
+}
+
+// Rupees taken off. 0 when there is no discount.
+export function bookingDiscount(b) {
+  return b?.discount?.amount || 0;
+}
+
+// Human description: "20% off (Regular customer)" / "Rs. 500 off".
+export function discountNote(d) {
+  if (!d) return '';
+  const base = d.type === 'percent' ? `${d.value}% off` : `Rs. ${d.value} off`;
+  return d.reason ? `${base} (${d.reason})` : base;
+}

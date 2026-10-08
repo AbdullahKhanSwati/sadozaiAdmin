@@ -63,7 +63,7 @@ export default function SalesByItem() {
       <Panel>
         <ExportBar />
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[690px]">
             <thead>
               <tr className="text-ink-500">
                 <th className="text-left font-medium px-5 py-3">Item</th>

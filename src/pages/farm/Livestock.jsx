@@ -198,7 +198,7 @@ export default function Livestock() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[920px]">
             <thead>
               <tr className="text-ink-500">
                 <th className="text-left font-medium px-4 py-3">Animal</th>

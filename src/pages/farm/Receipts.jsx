@@ -146,7 +146,7 @@ export default function Receipts() {
 
   const onDeleteForever = async (r) => {
     if (!r) return;
-    if (!window.confirm(`PERMANENTLY delete receipt ${r.no} (${rs(r.total)})?\n\nIt is removed from every report and customer statement and cannot be recovered. To keep a record, use "Cancel order" instead.`)) return;
+    if (!window.confirm(`PERMANENTLY delete receipt ${r.no} (${rs(r.total)})?\n\nThe sale, its items and every payment recorded against it are removed from all reports and the customer's history. This cannot be undone. To keep a record, use "Cancel order" instead.`)) return;
     setBusy(true);
     try {
       await deleteReceipt(r.id);
@@ -235,7 +235,7 @@ export default function Receipts() {
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[1035px]">
             <thead>
               <tr className="text-ink-500">
                 <th className="text-left font-medium px-5 py-3">Receipt no.</th>
@@ -578,7 +578,7 @@ function EditBillDialog({ bill, customers, onClose, onSave }) {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[460px]">
               <thead>
                 <tr className="text-ink-500 text-xs">
                   <th className="text-left font-medium py-2">Item</th>

@@ -210,7 +210,7 @@ export default function CustomerStatement() {
       <Card>
         <div className="px-5 py-4 border-b border-slate-100 text-sm font-bold text-ink-700">Statement</div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[575px]">
             <thead>
               <tr className="text-ink-500">
                 <th className="text-left font-medium px-5 py-3">Date</th>

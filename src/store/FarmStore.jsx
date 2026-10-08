@@ -281,8 +281,8 @@ export function FarmProvider({ children }) {
 
   const cancelReceipt = useCallback((id, reason) => setReceiptStatus(id, 'cancelled', reason), [setReceiptStatus]);
 
-  // PERMANENT delete — Owner only (farm_owner_delete_receipt checks the role and
-  // refuses a bill that still has payments recorded against it).
+  // PERMANENT delete — removes the sale, its lines and every payment recorded
+  // against it in one step (farm_owner_delete_receipt checks who may do this).
   const deleteReceipt = useCallback(async (id) => {
     const { error } = await sb.rpc('farm_owner_delete_receipt', { p_id: id });
     if (error) throw new Error(error.message || 'Could not delete this sale.');
@@ -290,6 +290,8 @@ export function FarmProvider({ children }) {
       receipts: s.receipts.filter((r) => r.id !== id),
       lines: s.lines.filter((l) => l.receipt_id !== id),
     }));
+    // Its payments were deleted with it (server side) — drop them here too.
+    setCustomerPayments((arr) => arr.filter((p) => p.receipt_id !== id));
   }, []);
 
   // Edit an old bill: qty + price per line and the customer (admins). The

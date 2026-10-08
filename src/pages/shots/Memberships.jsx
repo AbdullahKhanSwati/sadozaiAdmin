@@ -158,7 +158,7 @@ export default function Memberships() {
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="w-full min-w-[1035px]">
               <thead>
                 <tr>
                   <th className="table-th">Member</th>

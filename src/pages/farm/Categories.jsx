@@ -28,30 +28,32 @@ export default function Categories() {
           )}
         </div>
 
-        <table className="w-full text-sm border-t border-slate-100">
-          <thead>
-            <tr className="text-ink-500">
-              <th className="px-5 py-3 w-10"><CheckBox checked={allChecked} onChange={toggleAll} /></th>
-              <th className="text-left font-medium px-2 py-3">Name</th>
-            </tr>
-          </thead>
-          <tbody>
-            {categories.map((c) => (
-              <tr key={c.id} onClick={() => navigate(`/farm/items/categories/${c.id}`)} className="border-t border-slate-100 hover:bg-slate-50/60 cursor-pointer">
-                <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}><CheckBox checked={selected.includes(c.id)} onChange={() => toggleOne(c.id)} /></td>
-                <td className="px-2 py-4">
-                  <div className="flex items-center gap-4">
-                    <span className="w-11 h-11 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
-                    <div>
-                      <div className="text-ink-800">{c.name}</div>
-                      <div className="text-ink-400 text-xs mt-0.5">{count(c)} items</div>
-                    </div>
-                  </div>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-t border-slate-100 min-w-[420px]">
+            <thead>
+              <tr className="text-ink-500">
+                <th className="px-5 py-3 w-10"><CheckBox checked={allChecked} onChange={toggleAll} /></th>
+                <th className="text-left font-medium px-2 py-3">Name</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {categories.map((c) => (
+                <tr key={c.id} onClick={() => navigate(`/farm/items/categories/${c.id}`)} className="border-t border-slate-100 hover:bg-slate-50/60 cursor-pointer">
+                  <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}><CheckBox checked={selected.includes(c.id)} onChange={() => toggleOne(c.id)} /></td>
+                  <td className="px-2 py-4">
+                    <div className="flex items-center gap-4">
+                      <span className="w-11 h-11 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
+                      <div>
+                        <div className="text-ink-800">{c.name}</div>
+                        <div className="text-ink-400 text-xs mt-0.5">{count(c)} items</div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
     </div>
   );

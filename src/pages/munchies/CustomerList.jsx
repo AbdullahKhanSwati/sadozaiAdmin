@@ -81,7 +81,7 @@ export default function CustomerList() {
 
         {/* Table */}
         <div className="overflow-x-auto border-t border-slate-100">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[690px]">
             <thead>
               <tr className="text-ink-500">
                 <th className="text-left font-medium px-5 py-3">Customer</th>

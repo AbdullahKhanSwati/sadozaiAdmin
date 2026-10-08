@@ -3,6 +3,19 @@ import { supabaseBlockFactory as sb } from '../lib/supabaseBlockFactory.js';
 import { computeReports, saleIso } from '../data/blockFactoryReports.js';
 import { sortNatural, sortItemsByMenu } from '../lib/naturalSort.js';
 
+// Supabase returns at most 1,000 rows per request — read a whole table page by
+// page so old bills never silently drop out of the lists, reports and search.
+// `makeQuery` must build a fresh, fully-ordered query each time.
+async function selectAll(makeQuery, pageSize = 1000) {
+  const out = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await makeQuery().range(from, from + pageSize - 1);
+    if (error) return { data: null, error };
+    out.push(...(data || []));
+    if (!data || data.length < pageSize) return { data: out, error: null };
+  }
+}
+
 // Live catalog store for the Block Factory admin, backed by the Block Factory Supabase
 // project. The exported API (state arrays + save/delete fns + helpers) is kept
 // identical to the old localStorage store so none of the pages changed.
@@ -96,8 +109,8 @@ export function BlockFactoryProvider({ children }) {
 
   const reloadSales = useCallback(async () => {
     const [rc, rl] = await Promise.all([
-      sb.from('receipts').select('*'),
-      sb.from('receipt_lines').select('*'),
+      selectAll(() => sb.from('receipts').select('*').order('id')),
+      selectAll(() => sb.from('receipt_lines').select('*').order('id')),
     ]);
     setSalesRows({ receipts: rc.data || [], lines: rl.data || [] });
   }, []);
@@ -111,8 +124,8 @@ export function BlockFactoryProvider({ children }) {
   // Walk-in payments made against a customer's account (money collected outside
   // a sale). Cash taken at the till lives on receipts.paid instead.
   const reloadCustomerPayments = useCallback(async () => {
-    const { data, error } = await sb.from('customer_payments').select('*')
-      .order('paid_on', { ascending: false }).order('created_at', { ascending: false });
+    const { data, error } = await selectAll(() => sb.from('customer_payments').select('*')
+      .order('paid_on', { ascending: false }).order('created_at', { ascending: false }).order('id'));
     if (error) { console.error('load customer_payments', error); return; }
     setCustomerPayments(data || []);
   }, []);
@@ -131,7 +144,10 @@ export function BlockFactoryProvider({ children }) {
         ENTITIES.map(([, table, , order]) => sb.from(table).select('*').order(order, { ascending: true, nullsFirst: true }))
       );
       const s = await sb.from('business_settings').select('*').eq('id', 1).maybeSingle();
-      const [rc, rl] = await Promise.all([sb.from('receipts').select('*'), sb.from('receipt_lines').select('*')]);
+      const [rc, rl] = await Promise.all([
+        selectAll(() => sb.from('receipts').select('*').order('id')),
+        selectAll(() => sb.from('receipt_lines').select('*').order('id')),
+      ]);
       if (!active) return;
       await Promise.all([reloadExpenses(), reloadExpenseCategories(), reloadCustomerPayments()]);
 
@@ -224,8 +240,8 @@ export function BlockFactoryProvider({ children }) {
 
   const cancelReceipt = useCallback((id, reason) => setReceiptStatus(id, 'cancelled', reason), [setReceiptStatus]);
 
-  // PERMANENT delete — Owner only (bf_owner_delete_receipt checks the role and
-  // refuses a bill that still has payments recorded against it).
+  // PERMANENT delete — removes the sale, its lines and every payment recorded
+  // against it in one step (bf_owner_delete_receipt checks who may do this).
   const deleteReceipt = useCallback(async (id) => {
     const { error } = await sb.rpc('bf_owner_delete_receipt', { p_id: id });
     if (error) throw new Error(error.message || 'Could not delete this bill.');
@@ -233,15 +249,19 @@ export function BlockFactoryProvider({ children }) {
       receipts: s.receipts.filter((r) => r.id !== id),
       lines: s.lines.filter((l) => l.receipt_id !== id),
     }));
+    // Its payments were deleted with it (server side) — drop them here too.
+    setCustomerPayments((arr) => arr.filter((p) => p.receipt_id !== id));
   }, []);
 
-  // Edit an old bill: qty + price per line and the customer (admins). The
-  // server recalculates the totals (bf_edit_receipt) and logs the change.
-  const editReceipt = useCallback(async (id, { customerId, lines }) => {
+  // Edit an old bill: bill date, qty + price per line and the customer
+  // (admins). The server recalculates the totals (bf_edit_receipt) and logs
+  // the change; saleDate null keeps the current date.
+  const editReceipt = useCallback(async (id, { customerId, lines, saleDate }) => {
     const { data, error } = await sb.rpc('bf_edit_receipt', {
       p_receipt_id: id,
       p_customer_id: customerId || null,
       p_lines: (lines || []).map((l) => ({ id: l.id, qty: Number(l.qty), unit: Number(l.unit) })),
+      p_sale_date: saleDate || null,
     });
     if (error) throw new Error(error.message || 'Could not save the bill.');
     await Promise.all([reloadSales(), reloadCustomerPayments()]);
