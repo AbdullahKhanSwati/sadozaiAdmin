@@ -34,7 +34,7 @@ export const businesses = [
     type: 'Livestock Farm',
     tag: 'Agriculture',
     emoji: '🐄',
-    logo: '/farmLogo.png',
+    logo: '/farmLogo2.png',
     accent: '#5BA82F',
     accentDark: '#3C7320',
     available: true,
@@ -58,16 +58,5 @@ export const businesses = [
     // here; staff are refused and can use the Munchies app only.
     defaultEmail: '',
     defaultPassword: '',
-  },
-  {
-    id: 'sadozai-properties',
-    name: 'Sadozai Properties',
-    type: 'Real Estate',
-    tag: 'Property',
-    emoji: '🏘️',
-    accent: '#3B82F6',
-    accentDark: '#1D4ED8',
-    available: false,
-    summary: 'Listings, tenants, rent & contracts',
   },
 ];

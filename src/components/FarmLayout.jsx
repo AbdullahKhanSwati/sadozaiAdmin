@@ -130,7 +130,7 @@ export default function FarmLayout() {
           <Menu className="w-6 h-6" />
         </button>
         <img
-          src="/farmLogo.png"
+          src="/farmLogo2.png"
           alt="Farm"
           className="h-9 w-9 object-contain rounded shrink-0"
         />
