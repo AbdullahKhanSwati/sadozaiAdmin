@@ -24,6 +24,11 @@ const fmtTime = (ts) =>
   ts ? new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
 const exportDate = (iso) =>
   iso ? new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB') : ''; // dd/mm/yyyy
+// A negative amount (e.g. -200) is a credit/refund: it reduces the total and is
+// shown as money coming back ("+ Rs 200").
+const signedRs = (n) => (Number(n) < 0 ? `+ ${rs(-Number(n))}` : `− ${rs(n)}`);
+// Digits, one dot, and a minus only at the start.
+const cleanAmount = (t) => t.replace(/[^0-9.-]/g, '').replace(/(?!^)-/g, '');
 
 const rangeLabel = (from, to) => {
   const mtd = defaultRange();
@@ -105,7 +110,7 @@ export default function Expenses() {
   });
 
   const save = async () => {
-    if (!form.amount || !String(form.description).trim()) return window.alert('Amount and description are required.');
+    if (!Number(form.amount) || !String(form.description).trim()) return window.alert('Amount and description are required.');
     setSaving(true);
     const payload = {
       spent_on: form.spent_on || today(),
@@ -132,9 +137,9 @@ export default function Expenses() {
   const onExport = () => downloadCsv(`munchies-expenses-${csvDate()}.csv`, [
     { label: 'Date', value: (e) => exportDate(e.spent_on) },
     { label: 'Time', value: (e) => fmtTime(e.created_at) },
-    { label: 'Category', value: 'category' },
-    { label: 'Amount', value: (e) => Number(e.amount) || 0 },
     { label: 'Description', value: 'description' },
+    { label: 'Amount', value: (e) => Number(e.amount) || 0 },
+    { label: 'Category', value: 'category' },
   ], list);
 
   // The category the form is editing might have been deleted from the list —
@@ -222,7 +227,7 @@ export default function Expenses() {
                         <span className="chip bg-rose-50 text-rose-700">{e.category || 'Other'}</span>
                       </td>
                       <td className="table-td text-ink-600">{e.description}</td>
-                      <td className="table-td text-right font-extrabold text-rose-600 whitespace-nowrap">− {rs(e.amount)}</td>
+                      <td className={['table-td text-right font-extrabold whitespace-nowrap', Number(e.amount) < 0 ? 'text-emerald-600' : 'text-rose-600'].join(' ')}>{signedRs(e.amount)}</td>
                       <td className="table-td">
                         <div className="flex justify-end gap-1">
                           <button onClick={() => openEdit(e)} className="p-1.5 rounded-lg text-slate-400 hover:text-mun-600 hover:bg-slate-100" title="Edit"><Pencil className="w-4 h-4" /></button>
@@ -233,7 +238,7 @@ export default function Expenses() {
                   ))}
                   <tr>
                     <td className="px-4 py-3 font-bold" colSpan={3}>Total in view ({list.length})</td>
-                    <td className="px-4 py-3 text-right font-extrabold text-rose-600 whitespace-nowrap">− {rs(listTotal)}</td>
+                    <td className="px-4 py-3 text-right font-extrabold text-rose-600 whitespace-nowrap">{signedRs(listTotal)}</td>
                     <td />
                   </tr>
                 </tbody>
@@ -253,8 +258,8 @@ export default function Expenses() {
             <div className="h-[220px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={byCat} dataKey="amount" nameKey="category" innerRadius={48} outerRadius={80} paddingAngle={2}>
-                    {byCat.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="white" strokeWidth={2} />)}
+                  <Pie data={byCat.filter((c) => c.amount > 0)} dataKey="amount" nameKey="category" innerRadius={48} outerRadius={80} paddingAngle={2}>
+                    {byCat.filter((c) => c.amount > 0).map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="white" strokeWidth={2} />)}
                   </Pie>
                   <Tooltip
                     contentStyle={{ borderRadius: 12, border: '1px solid #E2E8F0', boxShadow: '0 10px 28px -8px rgba(15,23,42,0.18)' }}
@@ -311,7 +316,7 @@ export default function Expenses() {
               </div>
               <div>
                 <label className="label">Amount (Rs)</label>
-                <input className="input" inputMode="decimal" placeholder="0" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value.replace(/[^0-9.]/g, '') }))} />
+                <input className="input" inputMode="text" placeholder="0  (use -200 for a refund)" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: cleanAmount(e.target.value) }))} />
               </div>
               <div>
                 <label className="label">Date</label>
