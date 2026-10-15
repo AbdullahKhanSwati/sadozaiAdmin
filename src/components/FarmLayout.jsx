@@ -130,9 +130,9 @@ export default function FarmLayout() {
           <Menu className="w-6 h-6" />
         </button>
         <img
-          src="/farmLogo2.png"
+          src="/farmLogoFull.png"
           alt="Farm"
-          className="h-9 w-9 object-contain rounded shrink-0"
+          className="h-9 w-9 object-cover rounded-lg shrink-0"
         />
         <h1 className="text-lg sm:text-xl font-medium tracking-wide truncate">{titleFor(location.pathname)}</h1>
       </header>

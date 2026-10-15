@@ -87,7 +87,6 @@ export default function Login() {
             </h1>
             <p className="text-white/70 mt-3 text-sm lg:text-base">
               Pick one of your businesses below to sign in to its admin dashboard.
-              Shots, Munchies and Block Factory panels are enabled in this release.
             </p>
           </div>
 
@@ -110,10 +109,10 @@ export default function Login() {
                   <div className="flex items-start gap-3">
                     <div
                       className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0 overflow-hidden"
-                      style={{ backgroundColor: `${b.accent}30`, border: `1px solid ${b.accent}55` }}
+                      style={b.logoFull ? undefined : { backgroundColor: `${b.accent}30`, border: `1px solid ${b.accent}55` }}
                     >
                       {b.logo
-                        ? <img src={b.logo} alt="" className="w-full h-full object-contain p-1" />
+                        ? <img src={b.logo} alt="" className={b.logoFull ? 'w-full h-full object-cover' : 'w-full h-full object-contain p-1'} />
                         : <span>{b.emoji}</span>}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -161,11 +160,11 @@ export default function Login() {
           >
             <div className="flex items-center gap-3 mb-2">
               <div
-                className="w-16 h-11 rounded-xl flex items-center justify-center text-2xl shrink-0 overflow-hidden"
-                style={{ backgroundColor: `${selected.accent}1A`, border: `1px solid ${selected.accent}33` }}
+                className={`${selected.logoFull ? 'w-11' : 'w-16'} h-11 rounded-xl flex items-center justify-center text-2xl shrink-0 overflow-hidden`}
+                style={selected.logoFull ? undefined : { backgroundColor: `${selected.accent}1A`, border: `1px solid ${selected.accent}33` }}
               >
                 {selected.logo
-                  ? <img src={selected.logo} alt="" className="w-full h-full object-contain p-1" />
+                  ? <img src={selected.logo} alt="" className={selected.logoFull ? 'w-full h-full object-cover' : 'w-full h-full object-contain p-1'} />
                   : selected.emoji}
               </div>
               <div className="min-w-0">
