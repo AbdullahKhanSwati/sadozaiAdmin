@@ -37,7 +37,7 @@ export default function EmployeeList() {
           <div className="flex-1" />
           <div className="relative">
             <Search className="w-4 h-4 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className="pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-bf-500/30 focus:border-bf-400 w-44" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className="pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-farm-500/30 focus:border-farm-400 w-44" />
           </div>
         </div>
 

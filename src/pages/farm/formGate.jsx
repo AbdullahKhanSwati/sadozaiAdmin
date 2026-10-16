@@ -9,7 +9,7 @@ export function EditGate({ id, existing, ready }) {
       {ready ? (
         <div className="text-lg">This record no longer exists.</div>
       ) : (
-        <><Loader2 className="w-7 h-7 animate-spin text-bf-500 mb-3" /><div className="text-sm">Loading…</div></>
+        <><Loader2 className="w-7 h-7 animate-spin text-farm-500 mb-3" /><div className="text-sm">Loading…</div></>
       )}
     </div>
   );

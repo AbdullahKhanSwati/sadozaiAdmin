@@ -89,7 +89,7 @@ export default function ItemList() {
 
           <label className="flex flex-col text-xs text-ink-400">
             Category
-            <select value={cat} onChange={(e) => setCat(e.target.value)} className="mt-1 border-b border-slate-300 bg-transparent py-1 text-sm text-ink-700 focus:outline-none focus:border-bf-500 min-w-[140px]">
+            <select value={cat} onChange={(e) => setCat(e.target.value)} className="mt-1 border-b border-slate-300 bg-transparent py-1 text-sm text-ink-700 focus:outline-none focus:border-farm-500 min-w-[140px]">
               <option value="all">All items</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -97,7 +97,7 @@ export default function ItemList() {
 
           <label className="flex flex-col text-xs text-ink-400">
             Stock alert
-            <select className="mt-1 border-b border-slate-300 bg-transparent py-1 text-sm text-ink-700 focus:outline-none focus:border-bf-500 min-w-[120px]">
+            <select className="mt-1 border-b border-slate-300 bg-transparent py-1 text-sm text-ink-700 focus:outline-none focus:border-farm-500 min-w-[120px]">
               <option>All items</option>
               <option>Low stock</option>
               <option>Out of stock</option>
@@ -106,7 +106,7 @@ export default function ItemList() {
 
           <div className="relative">
             <Search className="w-4 h-4 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className="pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-bf-500/30 focus:border-bf-400 w-44" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className="pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-farm-500/30 focus:border-farm-400 w-44" />
           </div>
         </div>
 
@@ -119,7 +119,7 @@ export default function ItemList() {
                 <th className="text-left font-medium px-2 py-3">
                   <button onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))} className="inline-flex items-center gap-1 hover:text-ink-700">
                     Item name
-                    {sortDir === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-bf-600" /> : <ArrowDown className="w-3.5 h-3.5 text-bf-600" />}
+                    {sortDir === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-farm-600" /> : <ArrowDown className="w-3.5 h-3.5 text-farm-600" />}
                   </button>
                 </th>
                 <th className="text-left font-medium px-5 py-3">Category</th>

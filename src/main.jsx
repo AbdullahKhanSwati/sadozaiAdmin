@@ -3,6 +3,9 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import './index.css';
+import { installKeyboardViewport } from './lib/keyboardViewport.js';
+
+installKeyboardViewport();
 
 // After a new deploy, a browser still holding the OLD page asks for script
 // files that no longer exist, and the page stays blank until a manual refresh.

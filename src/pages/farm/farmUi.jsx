@@ -50,7 +50,7 @@ export const SHIFTS = [
 
 export const UNITS = ['Litre', 'Kg', 'Pieces', 'Dozen'];
 
-export const inputCls = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-bf-500';
+export const inputCls = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-farm-500';
 
 export function Label({ children }) {
   return <label className="block text-xs text-ink-400 mb-1">{children}</label>;

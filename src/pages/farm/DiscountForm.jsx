@@ -64,7 +64,7 @@ export default function DiscountForm() {
         </div>
 
         <label className="flex items-center gap-3 mt-6 cursor-pointer" onClick={() => setVariable((v) => !v)}>
-          <span className={['w-5 h-5 rounded flex items-center justify-center border-2', variable ? 'bg-bf-500 border-bf-500' : 'border-slate-300'].join(' ')}>
+          <span className={['w-5 h-5 rounded flex items-center justify-center border-2', variable ? 'bg-farm-500 border-farm-500' : 'border-slate-300'].join(' ')}>
             {variable && <span className="text-white text-xs">✓</span>}
           </span>
           <span className="text-sm text-ink-700">Value is entered at the time of sale</span>

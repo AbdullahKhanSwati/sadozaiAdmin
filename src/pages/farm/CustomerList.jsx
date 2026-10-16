@@ -73,9 +73,9 @@ export default function CustomerList() {
   return (
     <div className="max-w-[1400px] mx-auto">
       {/* Receivables headline — what the whole customer base still owes. */}
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg bg-bf-50 border border-bf-200 px-5 py-3">
-        <span className="text-sm font-semibold text-bf-700">Total outstanding</span>
-        <span className={['text-xl font-extrabold', totalOutstanding > 0 ? 'text-rose-600' : 'text-bf-700'].join(' ')}>
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg bg-farm-50 border border-farm-200 px-5 py-3">
+        <span className="text-sm font-semibold text-farm-700">Total outstanding</span>
+        <span className={['text-xl font-extrabold', totalOutstanding > 0 ? 'text-rose-600' : 'text-farm-700'].join(' ')}>
           {rs(totalOutstanding)}
         </span>
         <div className="flex-1" />
@@ -90,7 +90,7 @@ export default function CustomerList() {
           <TextBtn onClick={onExport}>Export</TextBtn>
           <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={onImport} />
           <div className="flex-1" />
-          <div className="relative flex items-center gap-2 min-w-[260px] border-b border-bf-500 pb-1">
+          <div className="relative flex items-center gap-2 min-w-[260px] border-b border-farm-500 pb-1">
             <Search className="w-5 h-5 text-ink-400" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, email" className="flex-1 bg-transparent text-sm text-ink-800 placeholder:text-slate-400 focus:outline-none" />
             {q && <button onClick={() => setQ('')} className="text-ink-400 hover:text-ink-600"><X className="w-4 h-4" /></button>}

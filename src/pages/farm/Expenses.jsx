@@ -117,7 +117,7 @@ export default function Expenses() {
           <button onClick={onExport} disabled={!filtered.length} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-ink-600 hover:bg-slate-50 disabled:opacity-40">
             <Download className="w-4 h-4" /> Export
           </button>
-          <button onClick={openNew} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-bf-600 text-white text-sm font-semibold hover:bg-bf-700">
+          <button onClick={openNew} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-farm-600 text-white text-sm font-semibold hover:bg-farm-700">
             <Plus className="w-4 h-4" /> Add expense
           </button>
         </div>
@@ -149,7 +149,7 @@ export default function Expenses() {
           </select>
         </div>
         {(from || to || category || animal) && (
-          <button onClick={() => { setFrom(''); setTo(''); setCategory(''); setAnimal(''); }} className="text-sm font-semibold text-bf-600 hover:text-bf-700 py-2">Clear</button>
+          <button onClick={() => { setFrom(''); setTo(''); setCategory(''); setAnimal(''); }} className="text-sm font-semibold text-farm-600 hover:text-farm-700 py-2">Clear</button>
         )}
         <div className="ml-auto text-right">
           <div className="text-[11px] uppercase tracking-widest font-bold text-ink-400">Total ({filtered.length})</div>
@@ -175,7 +175,7 @@ export default function Expenses() {
             <div className="text-ink-700 truncate pr-2">{e.description}</div>
             <div className="text-right font-bold text-rose-600 whitespace-nowrap">- {rs(e.amount)}</div>
             <div className="flex justify-end gap-1">
-              <button onClick={() => openEdit(e)} className="text-slate-400 hover:text-bf-600 p-1"><Pencil className="w-4 h-4" /></button>
+              <button onClick={() => openEdit(e)} className="text-slate-400 hover:text-farm-600 p-1"><Pencil className="w-4 h-4" /></button>
               <button onClick={() => del(e)} className="text-slate-400 hover:text-rose-500 p-1"><Trash2 className="w-4 h-4" /></button>
             </div>
           </div>
@@ -198,7 +198,7 @@ export default function Expenses() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs text-ink-400">Category</label>
-                  <button onClick={() => setCatsOpen(true)} className="text-xs font-semibold text-bf-600 hover:text-bf-700">Manage</button>
+                  <button onClick={() => setCatsOpen(true)} className="text-xs font-semibold text-farm-600 hover:text-farm-700">Manage</button>
                 </div>
                 <select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
                   {formCategoryOptions.length === 0 && <option value="">No categories — add one first</option>}
@@ -224,7 +224,7 @@ export default function Expenses() {
             </div>
             <div className="flex justify-end gap-3 px-5 py-4 border-t border-slate-100">
               <button onClick={() => setForm(null)} className="px-4 py-2 text-sm font-semibold text-ink-500 hover:text-ink-700">Cancel</button>
-              <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg bg-bf-600 text-white text-sm font-semibold hover:bg-bf-700 disabled:opacity-50">
+              <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg bg-farm-600 text-white text-sm font-semibold hover:bg-farm-700 disabled:opacity-50">
                 {saving ? 'Saving…' : 'Save expense'}
               </button>
             </div>

@@ -145,7 +145,7 @@ export default function Account() {
             <div className="text-ink-800 font-medium">Delete account</div>
             <div className="text-sm text-ink-400 mt-0.5 max-w-sm">You can permanently delete your Farm account and all its data</div>
           </div>
-          <button onClick={onDelete} className="text-bf-600 font-bold uppercase tracking-wide text-sm hover:text-bf-700 shrink-0">Delete</button>
+          <button onClick={onDelete} className="text-farm-600 font-bold uppercase tracking-wide text-sm hover:text-farm-700 shrink-0">Delete</button>
         </div>
       </Card>
 

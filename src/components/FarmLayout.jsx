@@ -125,7 +125,7 @@ export default function FarmLayout() {
   return (
     <div className="h-screen flex flex-col bg-slate-100 text-ink-800">
       {/* Full-width green header, above the sidebar */}
-      <header className="h-14 bg-bf-600 text-white flex items-center px-3 sm:px-4 gap-2 sm:gap-3 shadow-md shrink-0 z-30">
+      <header className="h-14 bg-farm-600 text-white flex items-center px-3 sm:px-4 gap-2 sm:gap-3 shadow-md shrink-0 z-30">
         <button onClick={toggleMenu} className="p-2 -ml-1 rounded hover:bg-white/15 transition" aria-label="Toggle menu">
           <Menu className="w-6 h-6" />
         </button>
@@ -256,13 +256,13 @@ function LeafItem({ item, expanded, onNavigate }) {
         [
           'flex items-center gap-4 h-12 text-sm font-medium transition relative',
           expanded ? 'px-5' : 'justify-center px-0',
-          isActive ? 'text-bf-700 bg-bf-50 font-semibold' : 'text-ink-600 hover:bg-slate-50',
+          isActive ? 'text-farm-700 bg-farm-50 font-semibold' : 'text-ink-600 hover:bg-slate-50',
         ].join(' ')
       }
     >
       {({ isActive }) => (
         <>
-          {isActive && <span className="absolute left-0 top-0 bottom-0 w-1 bg-bf-600" />}
+          {isActive && <span className="absolute left-0 top-0 bottom-0 w-1 bg-farm-600" />}
           <Icon className="w-6 h-6 shrink-0" style={{ color: item.color }} />
           {expanded && <span className="truncate">{item.label}</span>}
         </>
@@ -276,7 +276,7 @@ function GroupItem({ item, expanded, open, setOpen, active, flyoutOpen, setFlyou
   const Icon = item.icon;
   const children = visibleChildren(item);
   const rowBase = 'flex items-center gap-4 h-12 text-sm font-medium transition relative w-full cursor-pointer';
-  const rowTone = active ? 'text-bf-700 bg-bf-50 font-semibold' : 'text-ink-600 hover:bg-slate-50';
+  const rowTone = active ? 'text-farm-700 bg-farm-50 font-semibold' : 'text-ink-600 hover:bg-slate-50';
 
   return (
     <div className="relative">
@@ -285,7 +285,7 @@ function GroupItem({ item, expanded, open, setOpen, active, flyoutOpen, setFlyou
         title={item.label}
         className={[rowBase, expanded ? 'px-5' : 'justify-center px-0', rowTone].join(' ')}
       >
-        {active && <span className="absolute left-0 top-0 bottom-0 w-1 bg-bf-600" />}
+        {active && <span className="absolute left-0 top-0 bottom-0 w-1 bg-farm-600" />}
         <Icon className="w-6 h-6 shrink-0" style={{ color: item.color }} />
         {expanded && (
           <>
@@ -304,7 +304,7 @@ function GroupItem({ item, expanded, open, setOpen, active, flyoutOpen, setFlyou
               to={c.to}
               onClick={onNavigate}
               className={({ isActive }) =>
-                ['block pl-14 pr-4 py-2 text-[13px] transition', isActive ? 'text-bf-700 font-semibold bg-bf-50' : 'text-ink-500 hover:bg-slate-50'].join(' ')
+                ['block pl-14 pr-4 py-2 text-[13px] transition', isActive ? 'text-farm-700 font-semibold bg-farm-50' : 'text-ink-500 hover:bg-slate-50'].join(' ')
               }
             >
               {c.label}
@@ -323,7 +323,7 @@ function GroupItem({ item, expanded, open, setOpen, active, flyoutOpen, setFlyou
               to={c.to}
               onClick={() => { setFlyout(false); onNavigate?.(); }}
               className={({ isActive }) =>
-                ['block px-4 py-2.5 text-sm transition', isActive ? 'text-bf-700 font-semibold bg-bf-50' : 'text-ink-600 hover:bg-slate-50'].join(' ')
+                ['block px-4 py-2.5 text-sm transition', isActive ? 'text-farm-700 font-semibold bg-farm-50' : 'text-ink-600 hover:bg-slate-50'].join(' ')
               }
             >
               {c.label}

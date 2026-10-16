@@ -210,7 +210,7 @@ export default function Stock() {
           <button onClick={load} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-ink-600 hover:bg-slate-50">
             <RefreshCw className="w-4 h-4" /> Refresh
           </button>
-          <button onClick={exportXlsx} disabled={!filtered.length} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-bf-600 text-white text-sm font-semibold hover:bg-bf-700 disabled:opacity-40">
+          <button onClick={exportXlsx} disabled={!filtered.length} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-farm-600 text-white text-sm font-semibold hover:bg-farm-700 disabled:opacity-40">
             <Download className="w-4 h-4" /> Export Excel
           </button>
         </div>
@@ -219,28 +219,28 @@ export default function Stock() {
       {/* Tabs */}
       <div className="flex gap-2 mb-4">
         {[['entries', 'Entries'], ['manage', 'Items & categories']].map(([k, label]) => (
-          <button key={k} onClick={() => setTab(k)} className={['px-4 py-2 rounded-lg text-sm font-semibold', tab === k ? 'bg-bf-600 text-white' : 'bg-white border border-slate-200 text-ink-600 hover:bg-slate-50'].join(' ')}>{label}</button>
+          <button key={k} onClick={() => setTab(k)} className={['px-4 py-2 rounded-lg text-sm font-semibold', tab === k ? 'bg-farm-600 text-white' : 'bg-white border border-slate-200 text-ink-600 hover:bg-slate-50'].join(' ')}>{label}</button>
         ))}
       </div>
 
       {tab === 'manage' ? (
         <>
-        <p className={['text-xs font-semibold mb-3', orderNotice ? 'text-bf-700' : 'text-ink-400'].join(' ')}>
+        <p className={['text-xs font-semibold mb-3', orderNotice ? 'text-farm-700' : 'text-ink-400'].join(' ')}>
           {orderNotice || 'Drag a row by its handle (or use the arrows) to set the order the app shows — categories top to bottom, items within each category.'}
         </p>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Categories */}
           <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <div className="flex items-center gap-2 mb-4"><Tag className="w-5 h-5 text-bf-600" /><h3 className="font-bold text-ink-800">Categories</h3></div>
+            <div className="flex items-center gap-2 mb-4"><Tag className="w-5 h-5 text-farm-600" /><h3 className="font-bold text-ink-800">Categories</h3></div>
             <div className="flex gap-2 mb-3">
               <input value={newCat} onChange={(e) => setNewCat(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addCategory()} placeholder="New category name" className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
-              <button onClick={addCategory} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-bf-600 text-white text-sm font-semibold hover:bg-bf-700"><Plus className="w-4 h-4" /> Add</button>
+              <button onClick={addCategory} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-farm-600 text-white text-sm font-semibold hover:bg-farm-700"><Plus className="w-4 h-4" /> Add</button>
             </div>
             {stockCats.length === 0 ? <p className="text-sm text-ink-400">No categories yet.</p> : stockCats.map((c, i) => (
               <div key={c.id} {...catDrag.rowProps(c.id)} className={['flex items-center gap-2 py-2 border-t border-slate-100 rounded transition-colors', catDrag.rowClass(c.id)].join(' ')}>
                 <GripVertical className="w-4 h-4 text-slate-300 cursor-grab active:cursor-grabbing shrink-0" title="Drag to reorder" />
                 <ReorderBtns onUp={() => moveCat(i, -1)} onDown={() => moveCat(i, 1)} first={i === 0} last={i === stockCats.length - 1} />
-                <input defaultValue={c.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== c.name) renameCategory(c.id, v); }} className="flex-1 border-b border-transparent hover:border-slate-200 focus:border-bf-500 bg-transparent py-1 text-sm text-ink-800 focus:outline-none" />
+                <input defaultValue={c.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== c.name) renameCategory(c.id, v); }} className="flex-1 border-b border-transparent hover:border-slate-200 focus:border-farm-500 bg-transparent py-1 text-sm text-ink-800 focus:outline-none" />
                 <button onClick={() => deleteCategory(c.id)} className="text-slate-400 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
               </div>
             ))}
@@ -248,20 +248,20 @@ export default function Stock() {
 
           {/* Items */}
           <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <div className="flex items-center gap-2 mb-4"><Package className="w-5 h-5 text-bf-600" /><h3 className="font-bold text-ink-800">Items</h3></div>
+            <div className="flex items-center gap-2 mb-4"><Package className="w-5 h-5 text-farm-600" /><h3 className="font-bold text-ink-800">Items</h3></div>
             <div className="flex flex-wrap gap-2 mb-3">
               <input value={newItemName} onChange={(e) => setNewItemName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addItem()} placeholder="New item name" className="flex-1 min-w-[150px] border border-slate-200 rounded-lg px-3 py-2 text-sm" />
               <select value={newItemCat} onChange={(e) => setNewItemCat(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm">
                 <option value="">No category</option>
                 {stockCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
-              <button onClick={addItem} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-bf-600 text-white text-sm font-semibold hover:bg-bf-700"><Plus className="w-4 h-4" /> Add</button>
+              <button onClick={addItem} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-farm-600 text-white text-sm font-semibold hover:bg-farm-700"><Plus className="w-4 h-4" /> Add</button>
             </div>
             {stockItemsList.length === 0 ? <p className="text-sm text-ink-400">No items yet.</p> : stockItemsList.map((it, i) => (
               <div key={it.id} {...itemDrag.rowProps(it.id)} className={['flex items-center gap-2 py-2 border-t border-slate-100 rounded transition-colors', itemDrag.rowClass(it.id)].join(' ')}>
                 <GripVertical className="w-4 h-4 text-slate-300 cursor-grab active:cursor-grabbing shrink-0" title="Drag to reorder" />
                 <ReorderBtns onUp={() => moveItem(i, -1)} onDown={() => moveItem(i, 1)} first={i === 0} last={i === stockItemsList.length - 1} />
-                <input defaultValue={it.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== it.name) updateItem(it.id, { name: v }); }} className="flex-1 min-w-0 border-b border-transparent hover:border-slate-200 focus:border-bf-500 bg-transparent py-1 text-sm text-ink-800 focus:outline-none" />
+                <input defaultValue={it.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== it.name) updateItem(it.id, { name: v }); }} className="flex-1 min-w-0 border-b border-transparent hover:border-slate-200 focus:border-farm-500 bg-transparent py-1 text-sm text-ink-800 focus:outline-none" />
                 <select value={it.category_id || ''} onChange={(e) => updateItem(it.id, { category_id: e.target.value || null })} className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-ink-600">
                   <option value="">No category</option>
                   {stockCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -285,7 +285,7 @@ export default function Stock() {
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm" />
         </div>
         {(from || to) && (
-          <button onClick={() => { setFrom(''); setTo(''); }} className="text-sm font-semibold text-bf-600 hover:text-bf-700 py-2" title="Show all entries">Clear (all time)</button>
+          <button onClick={() => { setFrom(''); setTo(''); }} className="text-sm font-semibold text-farm-600 hover:text-farm-700 py-2" title="Show all entries">Clear (all time)</button>
         )}
         {(from !== defaultRange().start || to !== defaultRange().end) && (
           <button onClick={() => { setFrom(defaultRange().start); setTo(defaultRange().end); }} className="text-sm font-semibold text-ink-500 hover:text-ink-700 py-2">Month to date</button>
@@ -302,12 +302,12 @@ export default function Stock() {
           <div className="text-sm text-ink-400">No entries in this range.</div>
         ) : perStaff.map((s) => (
           <div key={s.name} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-bf-100 text-bf-700 flex items-center justify-center"><User className="w-5 h-5" /></div>
+            <div className="w-10 h-10 rounded-full bg-farm-100 text-farm-700 flex items-center justify-center"><User className="w-5 h-5" /></div>
             <div className="min-w-0 flex-1">
               <div className="font-semibold text-ink-800 truncate">{s.name}</div>
               <div className="text-xs text-ink-400">Staff</div>
             </div>
-            <div className="text-2xl font-extrabold text-bf-700">{s.count}</div>
+            <div className="text-2xl font-extrabold text-farm-700">{s.count}</div>
           </div>
         ))}
       </div>
@@ -368,10 +368,10 @@ export default function Stock() {
 function ReorderBtns({ onUp, onDown, first, last }) {
   return (
     <div className="flex flex-col shrink-0 -my-1">
-      <button onClick={onUp} disabled={first} className="text-slate-400 hover:text-bf-600 disabled:opacity-25 disabled:hover:text-slate-400 leading-none" title="Move up">
+      <button onClick={onUp} disabled={first} className="text-slate-400 hover:text-farm-600 disabled:opacity-25 disabled:hover:text-slate-400 leading-none" title="Move up">
         <ChevronUp className="w-4 h-4" />
       </button>
-      <button onClick={onDown} disabled={last} className="text-slate-400 hover:text-bf-600 disabled:opacity-25 disabled:hover:text-slate-400 leading-none" title="Move down">
+      <button onClick={onDown} disabled={last} className="text-slate-400 hover:text-farm-600 disabled:opacity-25 disabled:hover:text-slate-400 leading-none" title="Move down">
         <ChevronDown className="w-4 h-4" />
       </button>
     </div>

@@ -91,11 +91,11 @@ export default function Receivables() {
         <div className="flex flex-wrap items-center gap-4 p-5">
           <TextBtn onClick={onExport}>Export</TextBtn>
           <label className="flex items-center gap-2 text-sm text-ink-600 cursor-pointer select-none">
-            <input type="checkbox" checked={onlyDebtors} onChange={(e) => setOnlyDebtors(e.target.checked)} className="accent-bf-600 w-4 h-4" />
+            <input type="checkbox" checked={onlyDebtors} onChange={(e) => setOnlyDebtors(e.target.checked)} className="accent-farm-600 w-4 h-4" />
             Only customers with a balance
           </label>
           <div className="flex-1" />
-          <div className="relative flex items-center gap-2 min-w-[260px] border-b border-bf-500 pb-1">
+          <div className="relative flex items-center gap-2 min-w-[260px] border-b border-farm-500 pb-1">
             <Search className="w-5 h-5 text-ink-400" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, phone" className="flex-1 bg-transparent text-sm text-ink-800 placeholder:text-slate-400 focus:outline-none" />
             {q && <button onClick={() => setQ('')} className="text-ink-400 hover:text-ink-600"><X className="w-4 h-4" /></button>}
@@ -163,7 +163,7 @@ export default function Receivables() {
 }
 
 function Stat({ label, value, tone }) {
-  const valueTone = tone === 'due' ? 'text-rose-600' : tone === 'ok' ? 'text-bf-700' : 'text-ink-800';
+  const valueTone = tone === 'due' ? 'text-rose-600' : tone === 'ok' ? 'text-farm-700' : 'text-ink-800';
   return (
     <Card className="px-5 py-4">
       <div className="text-xs font-semibold uppercase tracking-wide text-ink-400">{label}</div>

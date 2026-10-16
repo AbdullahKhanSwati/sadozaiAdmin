@@ -142,7 +142,7 @@ export default function Production() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {byProduct.length === 0 && <StatTile label={rangeLabel(range)} value="No production" />}
         {byProduct.slice(0, 3).map((r) => (
-          <StatTile key={`${r.product}|${r.unit}`} label={`${r.product} · ${rangeLabel(range)}`} value={`${qtyFmt(r.qty)} ${r.unit}`} sub={`${r.days.size} day(s) · avg ${qtyFmt(r.qty / Math.max(1, r.days.size))} ${r.unit}/day`} tone="text-bf-700" />
+          <StatTile key={`${r.product}|${r.unit}`} label={`${r.product} · ${rangeLabel(range)}`} value={`${qtyFmt(r.qty)} ${r.unit}`} sub={`${r.days.size} day(s) · avg ${qtyFmt(r.qty / Math.max(1, r.days.size))} ${r.unit}/day`} tone="text-farm-700" />
         ))}
         <StatTile label="Records" value={filtered.length} sub={`${byAnimal.length} animal(s)`} />
       </div>
@@ -160,7 +160,7 @@ export default function Production() {
             <button onClick={onExport} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-ink-600 hover:bg-slate-50">
               <Download className="w-4 h-4" /> Export
             </button>
-            <button onClick={openNew} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-bf-600 text-white text-sm font-semibold hover:bg-bf-700">
+            <button onClick={openNew} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-farm-600 text-white text-sm font-semibold hover:bg-farm-700">
               <Plus className="w-4 h-4" /> Add production
             </button>
           </div>
@@ -189,7 +189,7 @@ export default function Production() {
                     <td className="px-4 py-3 text-right font-bold text-ink-800 whitespace-nowrap">{qtyFmt(p.quantity)} {p.unit}</td>
                     <td className="px-4 py-3 text-ink-500 truncate max-w-[220px]">{p.note || ''}</td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
-                      <button onClick={() => openEdit(p)} className="text-slate-400 hover:text-bf-600 p-1"><Pencil className="w-4 h-4" /></button>
+                      <button onClick={() => openEdit(p)} className="text-slate-400 hover:text-farm-600 p-1"><Pencil className="w-4 h-4" /></button>
                       <button onClick={() => remove(p)} className="text-slate-400 hover:text-rose-500 p-1"><Trash2 className="w-4 h-4" /></button>
                     </td>
                   </tr>
@@ -219,7 +219,7 @@ export default function Production() {
           footer={(
             <>
               <button onClick={() => setForm(null)} className="px-4 py-2 text-sm font-semibold text-ink-500 hover:text-ink-700">Cancel</button>
-              <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg bg-bf-600 text-white text-sm font-semibold hover:bg-bf-700 disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button>
+              <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg bg-farm-600 text-white text-sm font-semibold hover:bg-farm-700 disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button>
             </>
           )}
         >
@@ -291,7 +291,7 @@ function ProductionTypesDialog({ onClose }) {
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Milk" className={inputCls} />
         <input list="farm-units" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="Unit" className={inputCls} />
         <datalist id="farm-units">{UNITS.map((u) => <option key={u} value={u} />)}</datalist>
-        <button onClick={add} disabled={busy} className="px-4 py-2 rounded-lg bg-bf-600 text-white text-sm font-semibold hover:bg-bf-700 disabled:opacity-50">Add</button>
+        <button onClick={add} disabled={busy} className="px-4 py-2 rounded-lg bg-farm-600 text-white text-sm font-semibold hover:bg-farm-700 disabled:opacity-50">Add</button>
       </div>
       {productionTypes.length === 0 && <div className="text-sm text-ink-400">No products yet.</div>}
       {productionTypes.map((t) => (

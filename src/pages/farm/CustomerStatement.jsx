@@ -226,7 +226,7 @@ export default function CustomerStatement() {
                   <td className="px-5 py-3.5 text-ink-600 whitespace-nowrap">{fmtDate(r.isoDate)}</td>
                   <td className="px-5 py-3.5">
                     <button
-                      className={['font-semibold text-left', r.kind === 'sale' ? 'text-ink-800 hover:text-bf-700' : 'text-bf-700', r.cancelled && 'line-through text-ink-400'].filter(Boolean).join(' ')}
+                      className={['font-semibold text-left', r.kind === 'sale' ? 'text-ink-800 hover:text-farm-700' : 'text-farm-700', r.cancelled && 'line-through text-ink-400'].filter(Boolean).join(' ')}
                       onClick={() => r.kind === 'sale' && navigate('/farm/reports/receipts')}
                     >
                       {r.label}
@@ -247,7 +247,7 @@ export default function CustomerStatement() {
                     )}
                   </td>
                   <td className="px-5 py-3.5 text-right text-ink-700">{r.billed ? rs(r.billed) : '—'}</td>
-                  <td className="px-5 py-3.5 text-right text-bf-700 font-semibold">
+                  <td className="px-5 py-3.5 text-right text-farm-700 font-semibold">
                     {r.cancelled && r.kind === 'payment'
                       ? <span className="text-ink-300 line-through font-normal">{rs(r.voidAmount)}</span>
                       : (r.received ? rs(r.received) : '—')}
@@ -309,7 +309,7 @@ export default function CustomerStatement() {
               rows={3}
               autoFocus
               placeholder="e.g. entered twice by mistake — the customer only paid once"
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-ink-800 outline-none focus:border-bf-500"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-ink-800 outline-none focus:border-farm-500"
             />
             {!voidReason.trim() && (
               <div className="mt-1 text-xs text-ink-400">A note is required before a payment can be cancelled.</div>
@@ -358,7 +358,7 @@ export default function CustomerStatement() {
               className={underline}
               placeholder="0"
             />
-            <button className="mt-2 text-xs font-bold text-bf-700 hover:underline" onClick={() => setAmount(String(billDue))}>
+            <button className="mt-2 text-xs font-bold text-farm-700 hover:underline" onClick={() => setAmount(String(billDue))}>
               PAY THIS SALE IN FULL
             </button>
 
@@ -389,7 +389,7 @@ export default function CustomerStatement() {
 }
 
 function Stat({ label, value, tone }) {
-  const valueTone = tone === 'due' ? 'text-rose-600' : tone === 'ok' ? 'text-bf-700' : 'text-ink-800';
+  const valueTone = tone === 'due' ? 'text-rose-600' : tone === 'ok' ? 'text-farm-700' : 'text-ink-800';
   return (
     <Card className="px-5 py-4">
       <div className="text-xs font-semibold uppercase tracking-wide text-ink-400">{label}</div>

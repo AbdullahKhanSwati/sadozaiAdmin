@@ -6,7 +6,7 @@ export default function ComingSoon({ title = 'Coming soon' }) {
   return (
     <div className="max-w-[1400px] mx-auto">
       <div className="bg-white rounded-md border border-slate-200 shadow-soft flex flex-col items-center justify-center text-center py-24 px-6">
-        <div className="w-16 h-16 rounded-2xl bg-bf-50 text-bf-600 flex items-center justify-center mb-4">
+        <div className="w-16 h-16 rounded-2xl bg-farm-50 text-farm-600 flex items-center justify-center mb-4">
           <Hammer className="w-7 h-7" />
         </div>
         <h2 className="text-2xl font-semibold text-ink-800">{title}</h2>

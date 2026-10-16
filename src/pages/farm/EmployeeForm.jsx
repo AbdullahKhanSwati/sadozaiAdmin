@@ -123,7 +123,7 @@ export default function EmployeeForm() {
           </Field>
         </div>
 
-        <div className="mt-4 flex items-start gap-2 rounded-md bg-bf-50 border border-bf-100 px-3.5 py-2.5 text-xs text-bf-700">
+        <div className="mt-4 flex items-start gap-2 rounded-md bg-farm-50 border border-farm-100 px-3.5 py-2.5 text-xs text-farm-700">
           <span className="font-semibold">Access:</span>
           <span>{accessText}</span>
         </div>

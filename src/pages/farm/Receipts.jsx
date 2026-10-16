@@ -8,7 +8,7 @@ import { downloadCsv, csvDate } from '../../lib/csv.js';
 
 const TABS = [
   { key: 'all', label: 'All receipts', icon: Receipt, tone: 'bg-slate-500' },
-  { key: 'sales', label: 'Sales', icon: ReceiptText, tone: 'bg-bf-500' },
+  { key: 'sales', label: 'Sales', icon: ReceiptText, tone: 'bg-farm-500' },
   { key: 'cancelled', label: 'Cancelled', icon: Ban, tone: 'bg-rose-500' },
 ];
 
@@ -34,6 +34,10 @@ function discountRowsFor(d) {
   return rows;
 }
 
+// Report scopes for the search: every bill / none (keeps the unused pass cheap).
+const ALL_DATES = { key: 'all' };
+const NO_DATES = { key: 'none', start: '9999-12-31', end: '9999-12-31' };
+
 export default function Receipts() {
   const { cancelReceipt, restoreReceipt, deleteReceipt, editReceipt, customers, employees } = useFarm();
   // Permanent delete is for the OWNER only (login role 'owner' or the Owner
@@ -49,10 +53,16 @@ export default function Receipts() {
   // count, row and export below follows the selected period.
   const [range, setRange] = useState(defaultRange);
   const reports = useFarmReports(range);
-  const { receiptStats, receiptRows, receiptLineRows, receiptById } = reports;
+  const [q, setQ] = useState('');
+  // A typed search looks through EVERY bill, not just the selected period —
+  // an old bill must be findable without first changing the dates. The tab
+  // counts above the table stay on the selected period.
+  const needle = q.trim().toLowerCase();
+  const searchReports = useFarmReports(needle ? ALL_DATES : NO_DATES);
+  const { receiptStats } = reports;
+  const { receiptRows, receiptLineRows, receiptById } = needle ? searchReports : reports;
   const [editFor, setEditFor] = useState(null); // receipt detail being edited
   const [tab, setTab] = useState('all');
-  const [q, setQ] = useState('');
   const [openId, setOpenId] = useState(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [cancelFor, setCancelFor] = useState(null); // receipt pending cancellation
@@ -64,10 +74,15 @@ export default function Receipts() {
     : tab === 'cancelled'
       ? receiptRows.filter((r) => r.cancelled)
       : receiptRows;
-  const needle = q.toLowerCase();
-  const rows = byTab.filter(
-    (r) => r.no.toLowerCase().includes(needle) || r.date.toLowerCase().includes(needle)
-  );
+  // Search every column shown in the table (plus the raw date and amounts), so
+  // a bill can be found by its receipt no., customer, employee, amount…
+  const rows = needle
+    ? byTab.filter((r) => [
+        r.no, r.date, r.isoDate, exportDate(r.isoDate), r.time, r.employee, r.customer,
+        r.type, r.status, r.cancelReason, r.dining,
+        r.total, r.paid, r.balance, rs(r.total), rs(r.paid), rs(r.balance),
+      ].some((v) => v != null && String(v).toLowerCase().includes(needle)))
+    : byTab;
   const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(rows, 10);
 
   // ---- Exports -------------------------------------------------------------
@@ -177,14 +192,14 @@ export default function Receipts() {
                 onClick={() => { setTab(t.key); setPage(1); }}
                 className={[
                   'flex items-center gap-4 p-6 text-left transition border-b-2',
-                  on ? 'border-bf-600 bg-slate-50/40' : 'border-transparent hover:bg-slate-50',
+                  on ? 'border-farm-600 bg-slate-50/40' : 'border-transparent hover:bg-slate-50',
                 ].join(' ')}
               >
                 <div className={['w-14 h-14 rounded-full text-white flex items-center justify-center shrink-0', t.tone].join(' ')}>
                   <Icon className="w-6 h-6" />
                 </div>
                 <div>
-                  <div className="text-lg text-bf-700 font-medium">{t.label}</div>
+                  <div className="text-lg text-farm-700 font-medium">{t.label}</div>
                   <div className="text-3xl font-bold text-ink-800">{receiptStats[t.key] ?? 0}</div>
                 </div>
               </button>
@@ -201,7 +216,7 @@ export default function Receipts() {
             {exportOpen && <div className="fixed inset-0 z-10" onClick={() => setExportOpen(false)} />}
             <button
               onClick={() => setExportOpen((o) => !o)}
-              className="flex items-center gap-1.5 text-sm font-bold tracking-wide text-ink-600 hover:text-bf-600"
+              className="flex items-center gap-1.5 text-sm font-bold tracking-wide text-ink-600 hover:text-farm-600"
             >
               EXPORT <ChevronDown className="w-4 h-4" />
             </button>
@@ -228,10 +243,15 @@ export default function Receipts() {
             <Search className="w-4 h-4 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search"
-              className="pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-bf-500/30 focus:border-bf-400 w-52"
+              onChange={(e) => { setQ(e.target.value); setPage(1); }}
+              placeholder="Search bill, customer, amount…"
+              className="pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-farm-500/30 focus:border-farm-400 w-64"
             />
+            {needle && (
+              <div className="absolute right-0 top-full mt-1 text-[11px] text-ink-400 whitespace-nowrap">
+                Searching all dates · {rows.length} found
+              </div>
+            )}
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -276,7 +296,7 @@ export default function Receipts() {
                       <button
                         onClick={() => onRestore(r)}
                         disabled={busy}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-ink-500 hover:text-bf-600 disabled:opacity-40"
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-ink-500 hover:text-farm-600 disabled:opacity-40"
                       >
                         <RotateCcw className="w-3.5 h-3.5" /> Restore
                       </button>
@@ -375,7 +395,7 @@ export default function Receipts() {
                   </div>
                 ))}
                 {discountRowsFor(detail).map((d, i) => (
-                  <div key={i} className="flex justify-between py-2 text-bf-600">
+                  <div key={i} className="flex justify-between py-2 text-farm-600">
                     <span>{d.name}</span>
                     <span>- {rs(d.amount)}</span>
                   </div>
@@ -595,7 +615,7 @@ function EditBillDialog({ bill, customers, onClose, onSave }) {
                       <td className="py-2 pr-2">
                         <div className="text-ink-800">{`${l.code} ${l.name}`.trim()}</div>
                         {modsOf(l) > 0 ? <div className="text-[11px] text-ink-400">+ modifiers {rs(modsOf(l))}</div> : null}
-                        {pv?.ratio > 0 ? <div className="text-[11px] text-bf-600">{l.discountName || 'Discount'} {Math.round(pv.ratio * 1000) / 10}% kept</div> : null}
+                        {pv?.ratio > 0 ? <div className="text-[11px] text-farm-600">{l.discountName || 'Discount'} {Math.round(pv.ratio * 1000) / 10}% kept</div> : null}
                       </td>
                       <td className="py-2 text-right">
                         <input
@@ -625,7 +645,7 @@ function EditBillDialog({ bill, customers, onClose, onSave }) {
           <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 text-sm space-y-1">
             <div className="flex justify-between"><span className="text-ink-500">Subtotal</span><span>{rs(preview.subtotal)}</span></div>
             {preview.ticket > 0 && (
-              <div className="flex justify-between text-bf-600"><span>{bill.discountName || 'Sale discount'} (same %)</span><span>- {rs(preview.ticket)}</span></div>
+              <div className="flex justify-between text-farm-600"><span>{bill.discountName || 'Sale discount'} (same %)</span><span>- {rs(preview.ticket)}</span></div>
             )}
             <div className="flex justify-between font-bold text-ink-800 pt-1 border-t border-slate-200">
               <span>New total</span><span>{rs(preview.total)}</span>
@@ -645,7 +665,7 @@ function EditBillDialog({ bill, customers, onClose, onSave }) {
           <button
             onClick={save}
             disabled={saving}
-            className="px-4 py-2 rounded-lg bg-bf-600 text-white text-sm font-semibold hover:bg-bf-700 disabled:opacity-50"
+            className="px-4 py-2 rounded-lg bg-farm-600 text-white text-sm font-semibold hover:bg-farm-700 disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save changes'}
           </button>

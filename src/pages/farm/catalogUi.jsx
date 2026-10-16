@@ -7,7 +7,7 @@ export function PrimaryBtn({ children, className = '', ...props }) {
   return (
     <button
       {...props}
-      className={['px-5 py-2.5 rounded bg-bf-500 text-white text-sm font-bold uppercase tracking-wide shadow-sm hover:bg-bf-600 transition disabled:opacity-50', className].join(' ')}
+      className={['px-5 py-2.5 rounded bg-farm-500 text-white text-sm font-bold uppercase tracking-wide shadow-sm hover:bg-farm-600 transition disabled:opacity-50', className].join(' ')}
     >
       {children}
     </button>
@@ -26,7 +26,7 @@ export function GhostBtn({ children, className = '', ...props }) {
 }
 
 export function TextBtn({ children, tone = 'ink', className = '', ...props }) {
-  const tones = { ink: 'text-ink-600 hover:text-ink-800', mun: 'text-bf-600 hover:text-bf-700' };
+  const tones = { ink: 'text-ink-600 hover:text-ink-800', mun: 'text-farm-600 hover:text-farm-700' };
   return (
     <button {...props} className={['text-sm font-bold uppercase tracking-wide transition', tones[tone], className].join(' ')}>
       {children}
@@ -42,7 +42,7 @@ export function Toggle({ on, onChange }) {
       onClick={() => onChange(!on)}
       role="switch"
       aria-checked={on}
-      className={['w-11 h-6 rounded-full transition-colors relative shrink-0', on ? 'bg-bf-500' : 'bg-slate-300'].join(' ')}
+      className={['w-11 h-6 rounded-full transition-colors relative shrink-0', on ? 'bg-farm-500' : 'bg-slate-300'].join(' ')}
     >
       <span className={['absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform', on ? 'translate-x-[22px]' : 'translate-x-0.5'].join(' ')} />
     </button>
@@ -55,7 +55,7 @@ export function CheckBox({ checked, onChange }) {
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); onChange(!checked); }}
-      className={['w-5 h-5 rounded flex items-center justify-center border-2 transition', checked ? 'bg-bf-500 border-bf-500' : 'border-slate-300 hover:border-slate-400'].join(' ')}
+      className={['w-5 h-5 rounded flex items-center justify-center border-2 transition', checked ? 'bg-farm-500 border-farm-500' : 'border-slate-300 hover:border-slate-400'].join(' ')}
     >
       {checked && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
     </button>
@@ -79,14 +79,14 @@ export function Field({ label, hint, children }) {
 }
 
 export const underline =
-  'w-full border-b border-slate-300 bg-transparent py-2 text-ink-800 placeholder:text-slate-400 focus:outline-none focus:border-bf-500 transition';
+  'w-full border-b border-slate-300 bg-transparent py-2 text-ink-800 placeholder:text-slate-400 focus:outline-none focus:border-farm-500 transition';
 
 // ---- Radio ---------------------------------------------------------------
 export function Radio({ checked, onChange, label }) {
   return (
     <label className="flex items-center gap-2 cursor-pointer select-none" onClick={onChange}>
-      <span className={['w-5 h-5 rounded-full border-2 flex items-center justify-center', checked ? 'border-bf-500' : 'border-slate-300'].join(' ')}>
-        {checked && <span className="w-2.5 h-2.5 rounded-full bg-bf-500" />}
+      <span className={['w-5 h-5 rounded-full border-2 flex items-center justify-center', checked ? 'border-farm-500' : 'border-slate-300'].join(' ')}>
+        {checked && <span className="w-2.5 h-2.5 rounded-full bg-farm-500" />}
       </span>
       <span className="text-sm text-ink-700">{label}</span>
     </label>

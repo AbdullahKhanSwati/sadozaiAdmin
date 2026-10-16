@@ -37,8 +37,8 @@ export const businesses = [
     emoji: '🐄',
     logo: '/farmLogoFull.png',
     logoFull: true,                  // full-bleed square image, fills the tile
-    accent: '#5BA82F',
-    accentDark: '#3C7320',
+    accent: '#1E3A8A',
+    accentDark: '#0F2153',
     available: true,
     // Real Supabase auth (Farm project). Only admin accounts may sign in here;
     // staff are refused and can use the Farm app only.

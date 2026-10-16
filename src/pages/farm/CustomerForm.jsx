@@ -66,13 +66,13 @@ export default function CustomerForm() {
         </div>
 
         <h3 className="text-sm font-semibold text-ink-500 uppercase tracking-wider mt-10 mb-4">Notes</h3>
-        <textarea value={form.note} onChange={(e) => set({ note: e.target.value })} rows={3} placeholder="Note" className="w-full border border-slate-200 rounded-md p-3 text-sm text-ink-700 placeholder:text-slate-400 focus:outline-none focus:border-bf-400" />
+        <textarea value={form.note} onChange={(e) => set({ note: e.target.value })} rows={3} placeholder="Note" className="w-full border border-slate-200 rounded-md p-3 text-sm text-ink-700 placeholder:text-slate-400 focus:outline-none focus:border-farm-400" />
       </Card>
 
       {existing && (
         <Card className="mt-4 overflow-hidden">
           <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-100">
-            <Receipt className="w-5 h-5 text-bf-600" />
+            <Receipt className="w-5 h-5 text-farm-600" />
             <h3 className="font-semibold text-ink-800">Purchase history</h3>
             <span className="text-xs text-ink-400">({purchases.length})</span>
           </div>

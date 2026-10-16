@@ -26,7 +26,7 @@ const exportDate = (iso) => {
 // Absolute delta + percentage line under each card, coloured by favourability.
 function SummaryDelta({ m }) {
   const bad = m.betterWhenUp ? m.trend < 0 : m.trend > 0;
-  const color = m.trend === 0 ? 'text-ink-400' : bad ? 'text-rose-500' : 'text-bf-600';
+  const color = m.trend === 0 ? 'text-ink-400' : bad ? 'text-rose-500' : 'text-farm-600';
   const dSign = m.delta > 0 ? '+' : m.delta < 0 ? '-' : '';
   const deltaStr = `${dSign}${rs(Math.abs(m.delta))}`;
   const trendStr = m.trend === 0 ? '(0%)' : `(${m.trend > 0 ? '+' : ''}${m.trend.toFixed(2)}%)`;
@@ -132,7 +132,7 @@ export default function SalesSummary() {
                 onClick={() => setMetric(m.key)}
                 className={[
                   'p-5 text-left transition border-b-2',
-                  on ? 'border-bf-600 bg-slate-50/40' : 'border-transparent hover:bg-slate-50',
+                  on ? 'border-farm-600 bg-slate-50/40' : 'border-transparent hover:bg-slate-50',
                 ].join(' ')}
               >
                 <div className="text-sm text-ink-500">{m.label}</div>
@@ -182,7 +182,7 @@ export default function SalesSummary() {
           <button
             onClick={onExportExpenseBreakdown}
             disabled={!periodExpenseRows.length}
-            className="text-sm font-bold tracking-wide text-ink-600 hover:text-bf-600 disabled:opacity-40 disabled:hover:text-ink-600"
+            className="text-sm font-bold tracking-wide text-ink-600 hover:text-farm-600 disabled:opacity-40 disabled:hover:text-ink-600"
             title="Every expense grouped by day and category"
           >
             EXPENSE BREAKDOWN

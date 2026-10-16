@@ -95,11 +95,11 @@ export default function ItemForm() {
         </div>
 
         <div className="mt-6">
-          <textarea value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder="Description" rows={2} className="w-full border border-slate-200 rounded-md p-3 text-sm text-ink-700 placeholder:text-slate-400 focus:outline-none focus:border-bf-400" />
+          <textarea value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder="Description" rows={2} className="w-full border border-slate-200 rounded-md p-3 text-sm text-ink-700 placeholder:text-slate-400 focus:outline-none focus:border-farm-400" />
         </div>
 
         <label className="flex items-center gap-3 mt-6 cursor-pointer" onClick={() => set({ availableForSale: !form.availableForSale })}>
-          <span className={['w-6 h-6 rounded flex items-center justify-center border-2', form.availableForSale ? 'bg-bf-500 border-bf-500' : 'border-slate-300'].join(' ')}>
+          <span className={['w-6 h-6 rounded flex items-center justify-center border-2', form.availableForSale ? 'bg-farm-500 border-farm-500' : 'border-slate-300'].join(' ')}>
             {form.availableForSale && <span className="text-white text-sm">✓</span>}
           </span>
           <span className="text-sm text-ink-700">The item is available for sale</span>
@@ -155,8 +155,8 @@ export default function ItemForm() {
             ))}
           </div>
         )}
-        <button onClick={addVariant} className="flex items-center gap-2 text-bf-600 font-bold text-sm uppercase tracking-wide">
-          <Plus className="w-5 h-5 rounded-full border-2 border-bf-600 p-0.5" /> Add variants
+        <button onClick={addVariant} className="flex items-center gap-2 text-farm-600 font-bold text-sm uppercase tracking-wide">
+          <Plus className="w-5 h-5 rounded-full border-2 border-farm-600 p-0.5" /> Add variants
         </button>
       </Card>
 
@@ -195,7 +195,7 @@ export default function ItemForm() {
         ) : (
           <label className="w-40 h-40 bg-slate-50 border-2 border-dashed border-slate-200 rounded-md flex flex-col items-center justify-center text-slate-400 gap-2 cursor-pointer overflow-hidden relative">
             {uploading ? (
-              <Loader2 className="w-8 h-8 animate-spin text-bf-500" />
+              <Loader2 className="w-8 h-8 animate-spin text-farm-500" />
             ) : form.image ? (
               <>
                 <img src={form.image} alt="" className="w-full h-full object-cover" />

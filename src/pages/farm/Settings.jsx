@@ -29,7 +29,7 @@ export default function FarmSettings() {
                 onClick={() => setActive(s)}
                 className={[
                   'w-full text-left px-5 py-4 text-sm border-b border-slate-50 transition',
-                  active === s ? 'text-bf-700 font-semibold bg-bf-50' : 'text-ink-600 hover:bg-slate-50',
+                  active === s ? 'text-farm-700 font-semibold bg-farm-50' : 'text-ink-600 hover:bg-slate-50',
                 ].join(' ')}
               >
                 {s}
@@ -54,7 +54,7 @@ function ReceiptSettings() {
   const { settings, saveSettings } = useFarm();
   const r = settings?.receipt || {};
   const set = (patch) => saveSettings({ receipt: { ...r, ...patch } });
-  const underlineCls = 'w-full border-b border-slate-300 bg-transparent py-2 text-ink-800 focus:outline-none focus:border-bf-500';
+  const underlineCls = 'w-full border-b border-slate-300 bg-transparent py-2 text-ink-800 focus:outline-none focus:border-farm-500';
   return (
     <>
       <h2 className="text-2xl font-semibold text-ink-800 mb-1">Receipt</h2>
@@ -92,15 +92,15 @@ function DiningSettings() {
       <ul className="divide-y divide-slate-100 max-w-lg">
         {dining.map((d, i) => (
           <li key={i} className="flex items-center gap-4 py-4">
-            <input value={d.name} onChange={(e) => upd(i, { name: e.target.value })} className="flex-1 border-b border-slate-200 bg-transparent py-1 text-ink-800 focus:outline-none focus:border-bf-500" />
+            <input value={d.name} onChange={(e) => upd(i, { name: e.target.value })} className="flex-1 border-b border-slate-200 bg-transparent py-1 text-ink-800 focus:outline-none focus:border-farm-500" />
             <Toggle on={!!d.enabled} onChange={(v) => upd(i, { enabled: v })} />
             <button onClick={() => del(i)} className="text-slate-400 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
           </li>
         ))}
         {dining.length === 0 && <li className="py-4 text-sm text-ink-400">No dining options yet.</li>}
       </ul>
-      <button onClick={add} className="flex items-center gap-2 text-bf-600 font-bold text-sm uppercase tracking-wide mt-4">
-        <Plus className="w-5 h-5 rounded-full border-2 border-bf-600 p-0.5" /> Add option
+      <button onClick={add} className="flex items-center gap-2 text-farm-600 font-bold text-sm uppercase tracking-wide mt-4">
+        <Plus className="w-5 h-5 rounded-full border-2 border-farm-600 p-0.5" /> Add option
       </button>
     </>
   );

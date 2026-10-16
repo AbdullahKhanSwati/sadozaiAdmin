@@ -58,3 +58,25 @@
     @apply px-4 py-3 text-sm text-ink-700 border-b border-slate-100;
   }
 }
+
+/* Dialog overlays follow the VISIBLE part of the screen (above the phone
+   keyboard — vars set by lib/keyboardViewport.js) and scroll when the dialog
+   is taller than that. margin:auto keeps them centred (or bottom-anchored on
+   phones) when they fit, and lets them scroll from the top when they don't. */
+.fixed.inset-0.justify-center {
+  top: var(--vv-top, 0px);
+  bottom: auto;
+  height: var(--vv-height, 100%);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  align-items: flex-start;
+}
+.fixed.inset-0.justify-center > * {
+  margin-top: auto;
+  margin-bottom: auto;
+  flex-shrink: 0;
+}
+@media (max-width: 639px) {
+  .fixed.inset-0.justify-center.items-end > * { margin-bottom: 0; }
+}

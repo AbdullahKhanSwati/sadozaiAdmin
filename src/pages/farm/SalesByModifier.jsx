@@ -49,7 +49,7 @@ function GroupBlock({ group }) {
       <tr className="border-t border-slate-100 bg-slate-50/40">
         <td className="px-5 py-4">
           <div className="flex items-center gap-3">
-            <span className="w-8 h-8 rounded-full bg-bf-500 text-white flex items-center justify-center shrink-0">
+            <span className="w-8 h-8 rounded-full bg-farm-500 text-white flex items-center justify-center shrink-0">
               <FileCheck2 className="w-4 h-4" />
             </span>
             <span className="font-bold text-ink-800">{group.name}</span>

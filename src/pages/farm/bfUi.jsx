@@ -146,7 +146,7 @@ export function DateRangePicker({ range, onChange }) {
                 onClick={() => { onChange(rangeFor(p.key)); setOpen(false); }}
                 className={[
                   'block w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50',
-                  r.key === p.key ? 'text-bf-700 font-bold bg-bf-50' : 'text-ink-700',
+                  r.key === p.key ? 'text-farm-700 font-bold bg-farm-50' : 'text-ink-700',
                 ].join(' ')}
               >
                 {p.label}
@@ -160,7 +160,7 @@ export function DateRangePicker({ range, onChange }) {
                 value={r.start || ''}
                 max={r.end || undefined}
                 onChange={(e) => onChange({ key: 'custom', start: e.target.value, end: r.end || e.target.value })}
-                className="w-full border border-slate-200 rounded px-2 py-2 text-sm text-ink-800 mb-3 focus:outline-none focus:border-bf-500"
+                className="w-full border border-slate-200 rounded px-2 py-2 text-sm text-ink-800 mb-3 focus:outline-none focus:border-farm-500"
               />
               <label className="block text-xs text-ink-400 mb-1">End</label>
               <input
@@ -168,11 +168,11 @@ export function DateRangePicker({ range, onChange }) {
                 value={r.end || ''}
                 min={r.start || undefined}
                 onChange={(e) => onChange({ key: 'custom', start: r.start || e.target.value, end: e.target.value })}
-                className="w-full border border-slate-200 rounded px-2 py-2 text-sm text-ink-800 focus:outline-none focus:border-bf-500"
+                className="w-full border border-slate-200 rounded px-2 py-2 text-sm text-ink-800 focus:outline-none focus:border-farm-500"
               />
               <button
                 onClick={() => setOpen(false)}
-                className="mt-3 w-full bg-bf-600 text-white rounded py-2 text-sm font-bold hover:bg-bf-700"
+                className="mt-3 w-full bg-farm-600 text-white rounded py-2 text-sm font-bold hover:bg-farm-700"
               >
                 Apply
               </button>
@@ -243,7 +243,7 @@ function TimeSelect({ label, value, onChange }) {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full border-b border-slate-300 bg-transparent py-1 text-sm text-ink-800 focus:outline-none focus:border-bf-500"
+        className="w-full border-b border-slate-300 bg-transparent py-1 text-sm text-ink-800 focus:outline-none focus:border-farm-500"
       >
         {HOURS.map((h) => <option key={h} value={h}>{h}</option>)}
       </select>
@@ -254,8 +254,8 @@ function TimeSelect({ label, value, onChange }) {
 function Radio({ checked, onChange }) {
   return (
     <button type="button" onClick={onChange} className="shrink-0">
-      <span className={['w-5 h-5 rounded-full border-2 flex items-center justify-center', checked ? 'border-bf-500' : 'border-slate-300'].join(' ')}>
-        {checked && <span className="w-2.5 h-2.5 rounded-full bg-bf-500" />}
+      <span className={['w-5 h-5 rounded-full border-2 flex items-center justify-center', checked ? 'border-farm-500' : 'border-slate-300'].join(' ')}>
+        {checked && <span className="w-2.5 h-2.5 rounded-full bg-farm-500" />}
       </span>
     </button>
   );
@@ -293,7 +293,7 @@ function EmployeeFilter() {
 function Checkbox({ checked, onChange }) {
   return (
     <button type="button" onClick={onChange} className="shrink-0">
-      <span className={['w-5 h-5 rounded flex items-center justify-center border-2', checked ? 'bg-bf-500 border-bf-500' : 'border-slate-300'].join(' ')}>
+      <span className={['w-5 h-5 rounded flex items-center justify-center border-2', checked ? 'bg-farm-500 border-farm-500' : 'border-slate-300'].join(' ')}>
         {checked && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
       </span>
     </button>
@@ -311,7 +311,7 @@ export function ChartSelect({ value, options, onChange, width = 'w-40' }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center justify-between gap-2 border-b border-slate-300 pb-1 text-sm font-medium text-ink-700 min-w-[110px] hover:border-bf-500"
+        className="flex items-center justify-between gap-2 border-b border-slate-300 pb-1 text-sm font-medium text-ink-700 min-w-[110px] hover:border-farm-500"
       >
         {value}
         <ChevronDown className="w-4 h-4 text-ink-400" />
@@ -368,7 +368,7 @@ export function Panel({ children, className = '' }) {
 export function ExportBar({ children, onExport }) {
   return (
     <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-      <button onClick={onExport} className="text-sm font-bold tracking-wide text-ink-600 hover:text-bf-600">EXPORT</button>
+      <button onClick={onExport} className="text-sm font-bold tracking-wide text-ink-600 hover:text-farm-600">EXPORT</button>
       <div className="flex items-center gap-3">
         {children}
         <button className="text-ink-400 hover:text-ink-600" title="Columns">
@@ -382,7 +382,7 @@ export function ExportBar({ children, onExport }) {
 export function Trend({ value }) {
   if (value === 0 || value == null) return null;
   const up = value > 0;
-  return <span className={up ? 'text-bf-600' : 'text-rose-500'}>{up ? '+' : ''}{value.toFixed(2)}%</span>;
+  return <span className={up ? 'text-farm-600' : 'text-rose-500'}>{up ? '+' : ''}{value.toFixed(2)}%</span>;
 }
 
 // ---- Pagination ----------------------------------------------------------
@@ -427,7 +427,7 @@ export function TablePagination({ page, pageCount, rowsPerPage, setPage, setRows
           <select
             value={rowsPerPage}
             onChange={(e) => setRowsPerPage(Number(e.target.value))}
-            className="border-b border-slate-300 bg-transparent py-1 text-ink-700 font-medium focus:outline-none focus:border-bf-500 cursor-pointer"
+            className="border-b border-slate-300 bg-transparent py-1 text-ink-700 font-medium focus:outline-none focus:border-farm-500 cursor-pointer"
           >
             {rowsOptions.map((n) => <option key={n} value={n}>{n}</option>)}
           </select>

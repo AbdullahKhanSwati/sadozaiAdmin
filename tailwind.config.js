@@ -42,6 +42,20 @@ export default {
           800: '#2F5A19',
           900: '#234312',
         },
+        // Farm admin — matches the Farm app's navy theme.js
+        // (primary #1E3A8A, primaryDark #162D6E, primaryDarker #0F2153).
+        farm: {
+          50:  '#E8EEF9',
+          100: '#CFDAF1',
+          200: '#A3B6E3',
+          300: '#6F8BD0',
+          400: '#3D5DB8',
+          500: '#1E3A8A',
+          600: '#162D6E',
+          700: '#0F2153',
+          800: '#0A1A42',
+          900: '#061230',
+        },
         // Munchies admin (Loyverse-style green)
         mun: {
           50:  '#E8F5E9',

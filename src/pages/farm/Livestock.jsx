@@ -192,7 +192,7 @@ export default function Livestock() {
           <button onClick={onExport} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-ink-600 hover:bg-slate-50">
             <Download className="w-4 h-4" /> Export
           </button>
-          <button onClick={openNew} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-bf-600 text-white text-sm font-semibold hover:bg-bf-700">
+          <button onClick={openNew} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-farm-600 text-white text-sm font-semibold hover:bg-farm-700">
             <Plus className="w-4 h-4" /> Add animal
           </button>
         </div>
@@ -224,7 +224,7 @@ export default function Livestock() {
                       <div className="flex items-center gap-3">
                         {a.image
                           ? <img src={a.image} alt="" className="w-10 h-10 rounded-lg object-cover bg-slate-100 shrink-0" />
-                          : <div className="w-10 h-10 rounded-lg bg-bf-50 text-bf-600 flex items-center justify-center shrink-0"><PawPrint className="w-5 h-5" /></div>}
+                          : <div className="w-10 h-10 rounded-lg bg-farm-50 text-farm-600 flex items-center justify-center shrink-0"><PawPrint className="w-5 h-5" /></div>}
                         <div className="min-w-0">
                           <div className="font-semibold text-ink-800 truncate">{a.name}</div>
                           <div className="text-xs text-ink-400">{a.code || 'No tag'}</div>
@@ -238,7 +238,7 @@ export default function Livestock() {
                     <td className="px-4 py-3 text-ink-700">{prodText(s.prodMonth) || '—'}</td>
                     <td className="px-4 py-3 text-right text-rose-600 font-semibold whitespace-nowrap">{s.spent ? rs(s.spent) : '—'}</td>
                     <td className="px-4 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      <button onClick={() => openEdit(a)} className="text-slate-400 hover:text-bf-600 p-1"><Pencil className="w-4 h-4" /></button>
+                      <button onClick={() => openEdit(a)} className="text-slate-400 hover:text-farm-600 p-1"><Pencil className="w-4 h-4" /></button>
                       <button onClick={() => remove(a)} className="text-slate-400 hover:text-rose-500 p-1"><Trash2 className="w-4 h-4" /></button>
                     </td>
                   </tr>
@@ -274,7 +274,7 @@ export default function Livestock() {
           footer={(
             <>
               <button onClick={() => setForm(null)} className="px-4 py-2 text-sm font-semibold text-ink-500 hover:text-ink-700">Cancel</button>
-              <button onClick={save} disabled={saving || uploading} className="px-4 py-2 rounded-lg bg-bf-600 text-white text-sm font-semibold hover:bg-bf-700 disabled:opacity-50">
+              <button onClick={save} disabled={saving || uploading} className="px-4 py-2 rounded-lg bg-farm-600 text-white text-sm font-semibold hover:bg-farm-700 disabled:opacity-50">
                 {saving ? 'Saving…' : 'Save animal'}
               </button>
             </>
@@ -283,7 +283,7 @@ export default function Livestock() {
           <div className="grid sm:grid-cols-[140px_1fr] gap-5">
             <div>
               <Label>Photo</Label>
-              <label className="block w-full aspect-square rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 overflow-hidden cursor-pointer hover:border-bf-400">
+              <label className="block w-full aspect-square rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 overflow-hidden cursor-pointer hover:border-farm-400">
                 {form.image
                   ? <img src={form.image} alt="" className="w-full h-full object-cover" />
                   : <div className="w-full h-full flex flex-col items-center justify-center text-ink-400 text-xs gap-1"><ImagePlus className="w-6 h-6" />{uploading ? 'Uploading…' : 'Add photo'}</div>}
@@ -346,7 +346,7 @@ function AnimalDetail({ animal: a, typeName, production, expenses, prodText, sta
       <div className="grid sm:grid-cols-[160px_1fr] gap-5">
         {a.image
           ? <img src={a.image} alt="" className="w-full aspect-square rounded-lg object-cover bg-slate-100" />
-          : <div className="w-full aspect-square rounded-lg bg-bf-50 text-bf-600 flex items-center justify-center"><PawPrint className="w-10 h-10" /></div>}
+          : <div className="w-full aspect-square rounded-lg bg-farm-50 text-farm-600 flex items-center justify-center"><PawPrint className="w-10 h-10" /></div>}
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
           <Info label="Type" value={typeName} />
           <Info label="Status" value={<span className={['px-2 py-0.5 rounded-full text-xs font-semibold', st.tone].join(' ')}>{st.label}</span>} />
@@ -427,7 +427,7 @@ function LivestockTypesDialog({ onClose }) {
     <Modal title="Animal types" onClose={onClose}>
       <div className="flex gap-2 mb-4">
         <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} placeholder="New type, e.g. Camel" className={inputCls} />
-        <button onClick={add} disabled={busy} className="px-4 py-2 rounded-lg bg-bf-600 text-white text-sm font-semibold hover:bg-bf-700 disabled:opacity-50">Add</button>
+        <button onClick={add} disabled={busy} className="px-4 py-2 rounded-lg bg-farm-600 text-white text-sm font-semibold hover:bg-farm-700 disabled:opacity-50">Add</button>
       </div>
       {livestockCategories.length === 0 && <div className="text-sm text-ink-400">No types yet.</div>}
       {livestockCategories.map((c) => (
@@ -435,13 +435,13 @@ function LivestockTypesDialog({ onClose }) {
           {editing?.id === c.id ? (
             <>
               <input autoFocus value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && rename()} className={inputCls} />
-              <button onClick={rename} disabled={busy} className="text-sm font-semibold text-bf-600 px-2">Save</button>
+              <button onClick={rename} disabled={busy} className="text-sm font-semibold text-farm-600 px-2">Save</button>
             </>
           ) : (
             <>
               <span className="flex-1 text-ink-800">{c.name}</span>
               <span className="text-xs text-ink-400">{livestock.filter((a) => a.category_id === c.id).length} animal(s)</span>
-              <button onClick={() => setEditing({ id: c.id, name: c.name })} className="text-slate-400 hover:text-bf-600 p-1"><Pencil className="w-4 h-4" /></button>
+              <button onClick={() => setEditing({ id: c.id, name: c.name })} className="text-slate-400 hover:text-farm-600 p-1"><Pencil className="w-4 h-4" /></button>
               <button onClick={() => remove(c)} className="text-slate-400 hover:text-rose-500 p-1"><Trash2 className="w-4 h-4" /></button>
             </>
           )}

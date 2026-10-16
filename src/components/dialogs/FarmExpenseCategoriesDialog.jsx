@@ -86,7 +86,7 @@ export default function FarmExpenseCategoriesDialog({ open, onClose }) {
                       onChange={(e) => setEditName(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && saveEdit(c)}
                     />
-                    <button onClick={() => saveEdit(c)} disabled={busy} className="p-2 rounded-lg bg-bf-600 text-white hover:bg-bf-700 disabled:opacity-50">
+                    <button onClick={() => saveEdit(c)} disabled={busy} className="p-2 rounded-lg bg-farm-600 text-white hover:bg-farm-700 disabled:opacity-50">
                       <Check className="w-3.5 h-3.5" />
                     </button>
                     <button onClick={() => setEditingId(null)} className="p-2 rounded-lg border border-slate-200 text-ink-500 hover:bg-slate-50">
@@ -99,7 +99,7 @@ export default function FarmExpenseCategoriesDialog({ open, onClose }) {
                       <div className="font-bold text-ink-800 truncate">{c.name}</div>
                       <div className="text-[11px] text-ink-400">{used} expense{used === 1 ? '' : 's'}</div>
                     </div>
-                    <button onClick={() => { setEditingId(c.id); setEditName(c.name); }} className="p-2 rounded-lg text-slate-400 hover:text-bf-600 hover:bg-slate-50">
+                    <button onClick={() => { setEditingId(c.id); setEditName(c.name); }} className="p-2 rounded-lg text-slate-400 hover:text-farm-600 hover:bg-slate-50">
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
                     <button onClick={() => remove(c)} disabled={busy} className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-50">
@@ -120,7 +120,7 @@ export default function FarmExpenseCategoriesDialog({ open, onClose }) {
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && add()}
           />
-          <button onClick={add} disabled={busy || !newName.trim()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-bf-600 text-white text-sm font-semibold hover:bg-bf-700 disabled:opacity-50">
+          <button onClick={add} disabled={busy || !newName.trim()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-farm-600 text-white text-sm font-semibold hover:bg-farm-700 disabled:opacity-50">
             <Plus className="w-4 h-4" /> Add
           </button>
         </div>

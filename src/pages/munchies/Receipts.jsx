@@ -35,6 +35,10 @@ function discountRowsFor(d) {
   return rows;
 }
 
+// Report scopes for the search: every bill / none (keeps the unused pass cheap).
+const ALL_DATES = { key: 'all' };
+const NO_DATES = { key: 'none', start: '9999-12-31', end: '9999-12-31' };
+
 export default function Receipts() {
   const { cancelReceipt, restoreReceipt, deleteOrder, employees } = useMunchies();
   const { session } = useAuth();
@@ -55,9 +59,15 @@ export default function Receipts() {
   // count, row and export below follows the selected period.
   const [range, setRange] = useState(defaultRange);
   const reports = useReports(range);
-  const { receiptStats, receiptRows, receiptLineRows, receiptById } = reports;
-  const [tab, setTab] = useState('all');
   const [q, setQ] = useState('');
+  // A typed search looks through EVERY bill, not just the selected period —
+  // an old bill must be findable without first changing the dates. The tab
+  // counts above the table stay on the selected period.
+  const needle = q.trim().toLowerCase();
+  const searchReports = useReports(needle ? ALL_DATES : NO_DATES);
+  const { receiptStats } = reports;
+  const { receiptRows, receiptLineRows, receiptById } = needle ? searchReports : reports;
+  const [tab, setTab] = useState('all');
   const [openId, setOpenId] = useState(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [cancelFor, setCancelFor] = useState(null); // receipt pending cancellation
@@ -69,10 +79,15 @@ export default function Receipts() {
     : tab === 'cancelled'
       ? receiptRows.filter((r) => r.cancelled)
       : receiptRows;
-  const needle = q.toLowerCase();
-  const rows = byTab.filter(
-    (r) => r.no.toLowerCase().includes(needle) || r.date.toLowerCase().includes(needle)
-  );
+  // Search every column shown in the table (plus the raw date and amounts), so
+  // a bill can be found by its receipt no., customer, employee, amount…
+  const rows = needle
+    ? byTab.filter((r) => [
+        r.no, r.date, r.isoDate, exportDate(r.isoDate), r.time, r.employee, r.customer,
+        r.type, r.status, r.cancelReason, r.dining,
+        r.discountName, r.total, r.gross, r.discount, rs(r.total), rs(r.gross),
+      ].some((v) => v != null && String(v).toLowerCase().includes(needle)))
+    : byTab;
   const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(rows, 10);
 
   // ---- Exports -------------------------------------------------------------
@@ -234,10 +249,15 @@ export default function Receipts() {
             <Search className="w-4 h-4 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search"
-              className="pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-mun-500/30 focus:border-mun-400 w-52"
+              onChange={(e) => { setQ(e.target.value); setPage(1); }}
+              placeholder="Search bill, customer, amount…"
+              className="pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-mun-500/30 focus:border-mun-400 w-64"
             />
+            {needle && (
+              <div className="absolute right-0 top-full mt-1 text-[11px] text-ink-400 whitespace-nowrap">
+                Searching all dates · {rows.length} found
+              </div>
+            )}
           </div>
         </div>
         <div className="overflow-x-auto">
