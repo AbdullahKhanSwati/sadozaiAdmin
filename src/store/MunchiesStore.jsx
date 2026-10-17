@@ -3,6 +3,21 @@ import { supabaseMunchies as sb } from '../lib/supabaseMunchies.js';
 import { computeReports } from '../data/munchiesReports.js';
 import { sortNatural, sortByOrder, sortItemsByMenu } from '../lib/naturalSort.js';
 
+// Supabase returns at most 1,000 rows per request — read a whole table page by
+// page so receipts never silently lose their line items (an unpaged read of
+// receipt_lines returned an arbitrary 1,000 lines, so many receipts showed
+// "No line items recorded"). `makeQuery` must build a fresh, fully-ordered
+// query each time.
+async function selectAll(makeQuery, pageSize = 1000) {
+  const out = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await makeQuery().range(from, from + pageSize - 1);
+    if (error) return { data: null, error };
+    out.push(...(data || []));
+    if (!data || data.length < pageSize) return { data: out, error: null };
+  }
+}
+
 // Live catalog store for the Munchies admin, backed by the Munchies Supabase
 // project. The exported API (state arrays + save/delete fns + helpers) is kept
 // identical to the old localStorage store so none of the pages changed.
@@ -96,15 +111,15 @@ export function MunchiesProvider({ children }) {
 
   const reloadSales = useCallback(async () => {
     const [rc, rl] = await Promise.all([
-      sb.from('receipts').select('*'),
-      sb.from('receipt_lines').select('*'),
+      selectAll(() => sb.from('receipts').select('*').order('id')),
+      selectAll(() => sb.from('receipt_lines').select('*').order('id')),
     ]);
     setSalesRows({ receipts: rc.data || [], lines: rl.data || [] });
   }, []);
 
   const reloadExpenses = useCallback(async () => {
-    const { data } = await sb.from('expenses').select('*')
-      .order('spent_on', { ascending: false }).order('created_at', { ascending: false });
+    const { data } = await selectAll(() => sb.from('expenses').select('*')
+      .order('spent_on', { ascending: false }).order('created_at', { ascending: false }).order('id'));
     setExpenses(data || []);
   }, []);
 
@@ -122,7 +137,7 @@ export function MunchiesProvider({ children }) {
         ENTITIES.map(([, table, , order]) => sb.from(table).select('*').order(order, { ascending: true, nullsFirst: true }))
       );
       const s = await sb.from('business_settings').select('*').eq('id', 1).maybeSingle();
-      const [rc, rl] = await Promise.all([sb.from('receipts').select('*'), sb.from('receipt_lines').select('*')]);
+      const [rc, rl] = await Promise.all([selectAll(() => sb.from('receipts').select('*').order('id')), selectAll(() => sb.from('receipt_lines').select('*').order('id'))]);
       if (!active) return;
       await Promise.all([reloadExpenses(), reloadExpenseCategories()]);
 
