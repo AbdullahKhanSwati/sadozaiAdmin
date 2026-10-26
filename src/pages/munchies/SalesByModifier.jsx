@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { FileCheck2 } from 'lucide-react';
-import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination, defaultRange, rangeLabel } from './munchiesUi.jsx';
+import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination, useRollingRange, rangeLabel } from './munchiesUi.jsx';
 import { rs } from '../../data/munchiesData.js';
 import { useReports } from '../../store/MunchiesStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
 
 export default function SalesByModifier() {
-  const [range, setRange] = useState(defaultRange);
+  const [range, setRange] = useRollingRange();
   const reports = useReports(range);
   const onExport = () => downloadCsv(`munchies-sales-by-modifier-${csvDate()}.csv`, [
     { label: 'Modifier option', value: 'name' },

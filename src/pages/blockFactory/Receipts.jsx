@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Ban, ChevronDown, Pencil, Receipt, ReceiptText, RotateCcw, Search, Trash2, X } from 'lucide-react';
-import { ReportToolbar, Panel, usePagination, TablePagination, defaultRange, rangeLabel } from './bfUi.jsx';
+import { ReportToolbar, Panel, usePagination, TablePagination, useRollingRange, rangeLabel } from './bfUi.jsx';
 import { rs } from '../../data/munchiesData.js';
 import { useBlockFactory, useBfReports } from '../../store/BlockFactoryStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
@@ -47,7 +47,7 @@ export default function Receipts() {
   const { cancelReceipt, restoreReceipt, deleteReceipt, editReceipt, customers } = useBlockFactory();
   // Month to date by default (by BILL date); the picker changes it and every
   // count, row and export below follows the selected period.
-  const [range, setRange] = useState(defaultRange);
+  const [range, setRange] = useRollingRange();
   const reports = useBfReports(range);
   const [editFor, setEditFor] = useState(null); // receipt detail being edited
   const [tab, setTab] = useState('all');

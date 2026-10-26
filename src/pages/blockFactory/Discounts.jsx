@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination, defaultRange, rangeLabel } from './bfUi.jsx';
+import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination, useRollingRange, rangeLabel } from './bfUi.jsx';
 import { rs } from '../../data/munchiesData.js';
 import { useBfReports } from '../../store/BlockFactoryStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
 
 export default function Discounts() {
   // Month to date by default (by bill date); the picker changes the period.
-  const [range, setRange] = useState(defaultRange);
+  const [range, setRange] = useRollingRange();
   const reports = useBfReports(range);
   const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(reports.discountReportRows, 10);
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Ban, ChevronDown, Pencil, Receipt, ReceiptText, RotateCcw, Search, Trash2, X } from 'lucide-react';
-import { ReportToolbar, Panel, usePagination, TablePagination, defaultRange, rangeLabel } from './bfUi.jsx';
+import { ReportToolbar, Panel, usePagination, TablePagination, useRollingRange, rangeLabel } from './bfUi.jsx';
 import { rs } from '../../data/munchiesData.js';
 import { useFarm, useFarmReports } from '../../store/FarmStore.jsx';
 import { supabaseFarm } from '../../lib/supabaseFarm.js';
@@ -51,7 +51,7 @@ export default function Receipts() {
   }, [employees]);
   // Month to date by default (by BILL date); the picker changes it and every
   // count, row and export below follows the selected period.
-  const [range, setRange] = useState(defaultRange);
+  const [range, setRange] = useRollingRange();
   const reports = useFarmReports(range);
   const [q, setQ] = useState('');
   // A typed search looks through EVERY bill, not just the selected period —

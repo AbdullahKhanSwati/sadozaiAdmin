@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Ban, ChevronDown, Receipt, ReceiptText, RotateCcw, Search, Trash2, X } from 'lucide-react';
-import { ReportToolbar, Panel, usePagination, TablePagination, defaultRange, rangeLabel } from './munchiesUi.jsx';
+import { ReportToolbar, Panel, usePagination, TablePagination, useRollingRange, rangeLabel } from './munchiesUi.jsx';
 import { rs } from '../../data/munchiesData.js';
 import { useMunchies, useReports } from '../../store/MunchiesStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
@@ -57,7 +57,7 @@ export default function Receipts() {
   const isOwner = dbOwner || String(session?.role || '').toLowerCase() === 'owner';
   // Month to date by default; the picker in the toolbar changes it, and every
   // count, row and export below follows the selected period.
-  const [range, setRange] = useState(defaultRange);
+  const [range, setRange] = useRollingRange();
   const reports = useReports(range);
   const [q, setQ] = useState('');
   // A typed search looks through EVERY bill, not just the selected period —

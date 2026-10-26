@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Plus, Download, Pencil, Trash2, Tags, Search } from 'lucide-react';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
 import { useFarm } from '../../store/FarmStore.jsx';
-import { DateRangePicker, defaultRange, inRange, rangeLabel, usePagination, TablePagination } from './bfUi.jsx';
+import { DateRangePicker, useRollingRange, inRange, rangeLabel, usePagination, TablePagination } from './bfUi.jsx';
 import {
   today, fmtDate, exportDate, qtyFmt, SHIFTS, UNITS, inputCls, Label, Modal, StatTile,
 } from './farmUi.jsx';
@@ -14,7 +14,7 @@ const EMPTY = { id: null, produced_on: today(), livestock_id: '', product: '', u
 
 export default function Production() {
   const { production, productionTypes, livestock, saveFarmRow, deleteFarmRow, animalById, animalLabel } = useFarm();
-  const [range, setRange] = useState(defaultRange);
+  const [range, setRange] = useRollingRange();
   const [product, setProduct] = useState('');   // '' = all products
   const [animal, setAnimal] = useState('');     // '' = all animals
   const [q, setQ] = useState('');

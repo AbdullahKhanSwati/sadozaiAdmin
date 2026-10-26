@@ -3,14 +3,14 @@ import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { ReportToolbar, Panel, ExportBar, ChartSelect, usePagination, TablePagination, defaultRange, rangeLabel } from './munchiesUi.jsx';
+import { ReportToolbar, Panel, ExportBar, ChartSelect, usePagination, TablePagination, useRollingRange, rangeLabel } from './munchiesUi.jsx';
 import { ITEM_CHART_TYPES, GRANULARITY_OPTIONS, rs, rsAxis } from '../../data/munchiesData.js';
 import { useReports } from '../../store/MunchiesStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
 import { tickIntervalFor } from '../../lib/chartBuckets.js';
 
 export default function SalesByItem() {
-  const [range, setRange] = useState(defaultRange);
+  const [range, setRange] = useRollingRange();
   const reports = useReports(range);
   const { topItems, itemPie, itemRows } = reports;
   const [chartType, setChartType] = useState('Bar');

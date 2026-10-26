@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination, defaultRange, rangeLabel } from './munchiesUi.jsx';
+import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination, useRollingRange, rangeLabel } from './munchiesUi.jsx';
 import { rs } from '../../data/munchiesData.js';
 import { useReports } from '../../store/MunchiesStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
 
 export default function Discounts() {
   // Month to date by default; changeable from the toolbar like the summary page.
-  const [range, setRange] = useState(defaultRange);
+  const [range, setRange] = useRollingRange();
   const reports = useReports(range);
   const { page, setPage, rowsPerPage, setRowsPerPage, pageCount, pageItems } = usePagination(reports.discountReportRows, 10);
   const totalApplied = reports.discountReportRows.reduce((s, r) => s + (r.applied || 0), 0);

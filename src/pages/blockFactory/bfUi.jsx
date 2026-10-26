@@ -1,5 +1,5 @@
 // Shared UI bits for the Block Factory (Loyverse-style) report pages.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ChevronLeft, ChevronRight, Calendar, Clock, User, Columns3, ChevronDown, Check,
 } from 'lucide-react';
@@ -76,6 +76,31 @@ export function rangeFor(key, today = new Date()) {
 
 // Month to date is the default period for the summary.
 export const defaultRange = () => rangeFor('mtd');
+
+// The period on a report page, kept current: a preset (Today, This week, Month
+// to date, …) moves forward by itself when the day changes or when you come
+// back to the tab, so a page left open overnight never hides today's orders.
+// A custom period stays exactly as picked.
+export function useRollingRange(initial = defaultRange) {
+  const [range, setRange] = useState(initial);
+  useEffect(() => {
+    const refresh = () => setRange((r) => {
+      if (!r || r.key === 'custom' || r.key === 'all') return r;
+      const next = rangeFor(r.key);
+      return next.start === r.start && next.end === r.end ? r : next;
+    });
+    const onVisible = () => { if (!document.hidden) refresh(); };
+    const timer = setInterval(refresh, 60 * 1000);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', refresh);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', refresh);
+    };
+  }, []);
+  return [range, setRange];
+}
 
 const fmtDay = (s) => (s ? new Date(`${s}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
 

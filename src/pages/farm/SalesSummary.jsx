@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import {
   ReportToolbar, Panel, ExportBar, ChartSelect, usePagination, TablePagination,
-  defaultRange, inRange, rangeLabel,
+  useRollingRange, inRange, rangeLabel,
 } from './bfUi.jsx';
 import {
   SUMMARY_METRICS, SUMMARY_CHART_TYPES, GRANULARITY_OPTIONS, rs, rsAxis,
@@ -42,7 +42,7 @@ export default function SalesSummary() {
 
   // Every figure on this page is scoped to the selected period, which starts at
   // month-to-date rather than "everything ever".
-  const [range, setRange] = useState(defaultRange);
+  const [range, setRange] = useRollingRange();
 
   const active = SUMMARY_METRICS.find((m) => m.key === metric);
 

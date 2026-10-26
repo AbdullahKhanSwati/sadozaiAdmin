@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination, defaultRange, rangeLabel } from './munchiesUi.jsx';
+import { ReportToolbar, Panel, ExportBar, usePagination, TablePagination, useRollingRange, rangeLabel } from './munchiesUi.jsx';
 import { rs } from '../../data/munchiesData.js';
 import { useReports } from '../../store/MunchiesStore.jsx';
 import { downloadCsv, csvDate } from '../../lib/csv.js';
 
 export default function SalesByEmployee() {
-  const [range, setRange] = useState(defaultRange);
+  const [range, setRange] = useRollingRange();
   const reports = useReports(range);
   const onExport = () => downloadCsv(`munchies-sales-by-employee-${csvDate()}.csv`, [
     { label: 'Name', value: 'name' },
